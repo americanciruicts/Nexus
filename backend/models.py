@@ -1,7 +1,40 @@
-from sqlalchemy import Boolean, Column, Integer, String, Text, DateTime, Date, Decimal, ForeignKey
-from sqlalchemy.relationship import relationship
+from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey, Float, Enum
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
+import enum
+
+class UserRole(enum.Enum):
+    ADMIN = "ADMIN"
+    SUPERVISOR = "SUPERVISOR"
+    OPERATOR = "OPERATOR"
+    VIEWER = "VIEWER"
+
+class TravelerType(enum.Enum):
+    PCB = "PCB"
+    ASSY = "ASSY"
+    CABLE = "CABLE"
+    CABLE_ASSY = "CABLE_ASSY"
+    MECHANICAL = "MECHANICAL"
+    TEST = "TEST"
+
+class TravelerStatus(enum.Enum):
+    CREATED = "CREATED"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+    ON_HOLD = "ON_HOLD"
+    CANCELLED = "CANCELLED"
+
+class Priority(enum.Enum):
+    LOW = "LOW"
+    NORMAL = "NORMAL"
+    HIGH = "HIGH"
+    URGENT = "URGENT"
+
+class ApprovalStatus(enum.Enum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
 
 class User(Base):
     __tablename__ = "users"
@@ -9,133 +42,201 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(50), unique=True, index=True, nullable=False)
     email = Column(String(100), unique=True, index=True, nullable=False)
-    password_hash = Column(String(255), nullable=False)
-    role = Column(String(20), nullable=False, default="operator")
-    first_name = Column(String(50))
-    last_name = Column(String(50))
+    first_name = Column(String(50), nullable=False)
+    last_name = Column(String(50), nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    role = Column(Enum(UserRole), nullable=False, default=UserRole.OPERATOR)
+    is_approver = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-class PurchaseOrder(Base):
-    __tablename__ = "purchase_orders"
+    # Relationships
+    created_travelers = relationship("Traveler", back_populates="creator")
+    labor_entries = relationship("LaborEntry", back_populates="employee")
+    audit_logs = relationship("AuditLog", back_populates="user")
+
+class WorkCenter(Base):
+    __tablename__ = "work_centers"
 
     id = Column(Integer, primary_key=True, index=True)
-    po_number = Column(String(50), unique=True, nullable=False)
-    customer_name = Column(String(100), nullable=False)
-    job_number = Column(String(50))
-    created_date = Column(Date, nullable=False)
-    due_date = Column(Date)
-    status = Column(String(20), default="active")
-    created_by = Column(Integer, ForeignKey("users.id"))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    travelers = relationship("Traveler", back_populates="purchase_order")
-
-class TravelerType(Base):
-    __tablename__ = "traveler_types"
-
-    id = Column(Integer, primary_key=True, index=True)
-    type_name = Column(String(20), unique=True, nullable=False)
+    name = Column(String(100), nullable=False)
+    code = Column(String(20), unique=True, nullable=False)
     description = Column(Text)
-    color_code = Column(String(7))
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    travelers = relationship("Traveler", back_populates="traveler_type")
+    # Relationships
+    process_steps = relationship("ProcessStep", back_populates="work_center")
+
+class Part(Base):
+    __tablename__ = "parts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    part_number = Column(String(50), nullable=False, index=True)
+    description = Column(String(200), nullable=False)
+    revision = Column(String(20), nullable=False)
+    work_center_code = Column(String(20), nullable=False)
+    customer_code = Column(String(20))
+    customer_name = Column(String(100))
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    travelers = relationship("Traveler", back_populates="part")
 
 class Traveler(Base):
     __tablename__ = "travelers"
 
     id = Column(Integer, primary_key=True, index=True)
-    traveler_number = Column(String(50), unique=True, nullable=False)
-    po_id = Column(Integer, ForeignKey("purchase_orders.id"))
-    traveler_type_id = Column(Integer, ForeignKey("traveler_types.id"))
-    job_number = Column(String(50))
-    barcode = Column(String(100), unique=True)
-    status = Column(String(20), default="created")
-    revision = Column(Integer, default=1)
-    created_by = Column(Integer, ForeignKey("users.id"))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-    purchase_order = relationship("PurchaseOrder", back_populates="travelers")
-    traveler_type = relationship("TravelerType", back_populates="travelers")
-    bom_items = relationship("BOMItem", back_populates="traveler")
-    process_sequences = relationship("ProcessSequence", back_populates="traveler")
-    labor_logs = relationship("LaborLog", back_populates="traveler")
-    coating_logs = relationship("CoatingLog", back_populates="traveler")
-    revision_history = relationship("RevisionHistory", back_populates="traveler")
-
-class BOMItem(Base):
-    __tablename__ = "bom_items"
-
-    id = Column(Integer, primary_key=True, index=True)
-    traveler_id = Column(Integer, ForeignKey("travelers.id"))
-    part_number = Column(String(100), nullable=False)
-    description = Column(Text)
+    job_number = Column(String(50), nullable=False, index=True)
+    work_order_number = Column(String(50), index=True)
+    traveler_type = Column(Enum(TravelerType), nullable=False)
+    part_number = Column(String(50), nullable=False)
+    part_description = Column(String(200), nullable=False)
+    revision = Column(String(20), nullable=False)
     quantity = Column(Integer, nullable=False)
-    unit_price = Column(Decimal(10, 2))
-    supplier = Column(String(100))
+    customer_code = Column(String(20))
+    customer_name = Column(String(100))
+    priority = Column(Enum(Priority), default=Priority.NORMAL)
+    work_center = Column(String(20), nullable=False)
+    status = Column(Enum(TravelerStatus), default=TravelerStatus.CREATED)
     notes = Column(Text)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    completed_at = Column(DateTime(timezone=True))
 
-    traveler = relationship("Traveler", back_populates="bom_items")
+    # Foreign keys
+    part_id = Column(Integer, ForeignKey("parts.id"))
 
-class ProcessSequence(Base):
-    __tablename__ = "process_sequences"
+    # Relationships
+    creator = relationship("User", back_populates="created_travelers")
+    part = relationship("Part", back_populates="travelers")
+    process_steps = relationship("ProcessStep", back_populates="traveler")
+    manual_steps = relationship("ManualStep", back_populates="traveler")
+    labor_entries = relationship("LaborEntry", back_populates="traveler")
+    approvals = relationship("Approval", back_populates="traveler")
+    audit_logs = relationship("AuditLog", back_populates="traveler")
+
+class ProcessStep(Base):
+    __tablename__ = "process_steps"
 
     id = Column(Integer, primary_key=True, index=True)
-    traveler_id = Column(Integer, ForeignKey("travelers.id"))
+    traveler_id = Column(Integer, ForeignKey("travelers.id"), nullable=False)
     step_number = Column(Integer, nullable=False)
-    step_name = Column(String(100), nullable=False)
-    description = Column(Text)
-    estimated_hours = Column(Decimal(5, 2))
-    required_role = Column(String(50))
+    operation = Column(String(100), nullable=False)
+    work_center_code = Column(String(20), ForeignKey("work_centers.code"), nullable=False)
+    instructions = Column(Text, nullable=False)
+    estimated_time = Column(Integer)  # in minutes
+    is_required = Column(Boolean, default=True)
     is_completed = Column(Boolean, default=False)
     completed_by = Column(Integer, ForeignKey("users.id"))
     completed_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    traveler = relationship("Traveler", back_populates="process_sequences")
+    # Relationships
+    traveler = relationship("Traveler", back_populates="process_steps")
+    work_center = relationship("WorkCenter", back_populates="process_steps")
+    sub_steps = relationship("SubStep", back_populates="process_step")
 
-class LaborLog(Base):
-    __tablename__ = "labor_logs"
+class SubStep(Base):
+    __tablename__ = "sub_steps"
 
     id = Column(Integer, primary_key=True, index=True)
-    traveler_id = Column(Integer, ForeignKey("travelers.id"))
-    process_step_id = Column(Integer, ForeignKey("process_sequences.id"))
-    user_id = Column(Integer, ForeignKey("users.id"))
+    process_step_id = Column(Integer, ForeignKey("process_steps.id"), nullable=False)
+    step_number = Column(String(10), nullable=False)  # e.g., "1.1", "1.2"
+    description = Column(Text, nullable=False)
+    is_completed = Column(Boolean, default=False)
+    completed_by = Column(Integer, ForeignKey("users.id"))
+    completed_at = Column(DateTime(timezone=True))
+    notes = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    process_step = relationship("ProcessStep", back_populates="sub_steps")
+
+class ManualStep(Base):
+    __tablename__ = "manual_steps"
+
+    id = Column(Integer, primary_key=True, index=True)
+    traveler_id = Column(Integer, ForeignKey("travelers.id"), nullable=False)
+    description = Column(Text, nullable=False)
+    added_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    added_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    traveler = relationship("Traveler", back_populates="manual_steps")
+
+class LaborEntry(Base):
+    __tablename__ = "labor_entries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    traveler_id = Column(Integer, ForeignKey("travelers.id"), nullable=False)
+    step_id = Column(Integer, ForeignKey("process_steps.id"))
+    employee_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     start_time = Column(DateTime(timezone=True), nullable=False)
     end_time = Column(DateTime(timezone=True))
-    hours_logged = Column(Decimal(5, 2))
-    notes = Column(Text)
+    hours_worked = Column(Float, default=0.0)
+    description = Column(Text)
+    is_completed = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    traveler = relationship("Traveler", back_populates="labor_logs")
+    # Relationships
+    traveler = relationship("Traveler", back_populates="labor_entries")
+    employee = relationship("User", back_populates="labor_entries")
 
-class CoatingLog(Base):
-    __tablename__ = "coating_logs"
+class Approval(Base):
+    __tablename__ = "approvals"
 
     id = Column(Integer, primary_key=True, index=True)
-    traveler_id = Column(Integer, ForeignKey("travelers.id"))
-    coating_type = Column(String(50))
-    sent_date = Column(Date)
-    received_date = Column(Date)
-    inspected_date = Column(Date)
-    tracking_number = Column(String(100))
-    status = Column(String(20), default="sent")
-    notes = Column(Text)
+    traveler_id = Column(Integer, ForeignKey("travelers.id"), nullable=False)
+    requested_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    requested_at = Column(DateTime(timezone=True), server_default=func.now())
+    status = Column(Enum(ApprovalStatus), default=ApprovalStatus.PENDING)
+    approved_by = Column(Integer, ForeignKey("users.id"))
+    approved_at = Column(DateTime(timezone=True))
+    rejected_by = Column(Integer, ForeignKey("users.id"))
+    rejected_at = Column(DateTime(timezone=True))
+    rejection_reason = Column(Text)
+    request_type = Column(String(20), nullable=False)  # 'EDIT', 'COMPLETE', 'CANCEL'
+    request_details = Column(Text, nullable=False)
+
+    # Relationships
+    traveler = relationship("Traveler", back_populates="approvals")
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    traveler_id = Column(Integer, ForeignKey("travelers.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    action = Column(String(20), nullable=False)  # 'CREATED', 'UPDATED', 'COMPLETED', etc.
+    field_changed = Column(String(50))
+    old_value = Column(Text)
+    new_value = Column(Text)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    ip_address = Column(String(45))
+    user_agent = Column(String(500))
+
+    # Relationships
+    traveler = relationship("Traveler", back_populates="audit_logs")
+    user = relationship("User", back_populates="audit_logs")
+
+class WorkOrder(Base):
+    __tablename__ = "work_orders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_number = Column(String(50), nullable=False, index=True)
+    work_order_number = Column(String(50), nullable=False, index=True)
+    part_number = Column(String(50), nullable=False)
+    part_description = Column(String(200), nullable=False)
+    revision = Column(String(20), nullable=False)
+    quantity = Column(Integer, nullable=False)
+    customer_code = Column(String(20))
+    customer_name = Column(String(100))
+    work_center = Column(String(20), nullable=False)
+    priority = Column(Enum(Priority), default=Priority.NORMAL)
+    process_template = Column(Text)  # JSON string of process steps
+    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    traveler = relationship("Traveler", back_populates="coating_logs")
-
-class RevisionHistory(Base):
-    __tablename__ = "revision_history"
-
-    id = Column(Integer, primary_key=True, index=True)
-    traveler_id = Column(Integer, ForeignKey("travelers.id"))
-    revision_number = Column(Integer, nullable=False)
-    change_description = Column(Text)
-    changed_by = Column(Integer, ForeignKey("users.id"))
-    change_date = Column(DateTime(timezone=True), server_default=func.now())
-    change_reason = Column(String(100))
-
-    traveler = relationship("Traveler", back_populates="revision_history")

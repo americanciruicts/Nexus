@@ -1,0 +1,296 @@
+{
+  "PCB": {
+    "steps": [
+      {
+        "stepNumber": 1,
+        "operation": "INCOMING INSPECTION",
+        "workCenter": "INCOMING",
+        "instructions": "Verify PCB against specifications",
+        "subSteps": [
+          "Check part number and revision",
+          "Verify quantity received",
+          "Visual inspection for damage",
+          "Dimensional verification",
+          "Documentation review"
+        ],
+        "estimatedTime": 30
+      },
+      {
+        "stepNumber": 2,
+        "operation": "PCB PREP",
+        "workCenter": "PCB_PREP",
+        "instructions": "Prepare PCB for assembly process",
+        "subSteps": [
+          "Clean PCB surface",
+          "Apply conformal coating if required",
+          "Mark identification numbers",
+          "Pre-heat if specified"
+        ],
+        "estimatedTime": 45
+      },
+      {
+        "stepNumber": 3,
+        "operation": "COMPONENT PLACEMENT",
+        "workCenter": "SMT_LINE",
+        "instructions": "Place components on PCB according to assembly drawing",
+        "subSteps": [
+          "Load component reels",
+          "Verify component orientation",
+          "Run placement program",
+          "Visual inspection of placement",
+          "Rework if necessary"
+        ],
+        "estimatedTime": 90
+      },
+      {
+        "stepNumber": 4,
+        "operation": "REFLOW SOLDER",
+        "workCenter": "REFLOW",
+        "instructions": "Solder components using reflow oven",
+        "subSteps": [
+          "Load PCB into reflow oven",
+          "Monitor temperature profile",
+          "Visual inspection post-reflow",
+          "Touch-up solder joints if needed"
+        ],
+        "estimatedTime": 60
+      },
+      {
+        "stepNumber": 5,
+        "operation": "AOI INSPECTION",
+        "workCenter": "AOI",
+        "instructions": "Automated Optical Inspection",
+        "subSteps": [
+          "Load PCB into AOI machine",
+          "Run inspection program",
+          "Review defects found",
+          "Mark for rework if necessary",
+          "Generate inspection report"
+        ],
+        "estimatedTime": 20
+      },
+      {
+        "stepNumber": 6,
+        "operation": "FINAL INSPECTION",
+        "workCenter": "QC",
+        "instructions": "Final quality control inspection",
+        "subSteps": [
+          "Visual inspection",
+          "Functional testing",
+          "Electrical testing",
+          "Documentation completion",
+          "Packaging preparation"
+        ],
+        "estimatedTime": 45
+      }
+    ]
+  },
+  "ASSY": {
+    "steps": [
+      {
+        "stepNumber": 1,
+        "operation": "KIT PREPARATION",
+        "workCenter": "KITTING",
+        "instructions": "Prepare all components for assembly",
+        "subSteps": [
+          "Gather all required parts",
+          "Verify part numbers and quantities",
+          "Check for damaged components",
+          "Organize parts by assembly sequence",
+          "Print work instructions"
+        ],
+        "estimatedTime": 60
+      },
+      {
+        "stepNumber": 2,
+        "operation": "MECHANICAL ASSEMBLY",
+        "workCenter": "ASSEMBLY",
+        "instructions": "Mechanical assembly of components",
+        "subSteps": [
+          "Install mechanical components",
+          "Apply torque specifications",
+          "Install fasteners",
+          "Route cables and wires",
+          "Apply labels and markings"
+        ],
+        "estimatedTime": 120
+      },
+      {
+        "stepNumber": 3,
+        "operation": "ELECTRICAL ASSEMBLY",
+        "workCenter": "ASSEMBLY",
+        "instructions": "Electrical connections and wiring",
+        "subSteps": [
+          "Connect electrical components",
+          "Solder connections",
+          "Apply heat shrink tubing",
+          "Continuity testing",
+          "Insulation resistance testing"
+        ],
+        "estimatedTime": 90
+      },
+      {
+        "stepNumber": 4,
+        "operation": "FUNCTIONAL TEST",
+        "workCenter": "TEST",
+        "instructions": "Functional testing of assembled unit",
+        "subSteps": [
+          "Power-on test",
+          "Function verification",
+          "Performance testing",
+          "Calibration if required",
+          "Test documentation"
+        ],
+        "estimatedTime": 75
+      },
+      {
+        "stepNumber": 5,
+        "operation": "FINAL PACKAGING",
+        "workCenter": "PACKAGING",
+        "instructions": "Package for shipment",
+        "subSteps": [
+          "Clean assembled unit",
+          "Install protective covers",
+          "Package in shipping container",
+          "Include documentation",
+          "Apply shipping labels"
+        ],
+        "estimatedTime": 30
+      }
+    ]
+  },
+  "CABLE": {
+    "steps": [
+      {
+        "stepNumber": 1,
+        "operation": "CABLE PREPARATION",
+        "workCenter": "CABLE_PREP",
+        "instructions": "Prepare cable for assembly",
+        "subSteps": [
+          "Cut cable to specified length",
+          "Strip wire ends",
+          "Identify conductor wires",
+          "Apply strain relief",
+          "Label cable ends"
+        ],
+        "estimatedTime": 45
+      },
+      {
+        "stepNumber": 2,
+        "operation": "CONNECTOR ASSEMBLY",
+        "workCenter": "CABLE_ASSY",
+        "instructions": "Install connectors on cable",
+        "subSteps": [
+          "Prepare connector shells",
+          "Insert contact pins",
+          "Solder wire connections",
+          "Apply heat shrink",
+          "Install connector shells"
+        ],
+        "estimatedTime": 90
+      },
+      {
+        "stepNumber": 3,
+        "operation": "CONTINUITY TEST",
+        "workCenter": "CABLE_TEST",
+        "instructions": "Test cable electrical continuity",
+        "subSteps": [
+          "Connect test equipment",
+          "Test each conductor",
+          "Verify pinout configuration",
+          "Test insulation resistance",
+          "Document test results"
+        ],
+        "estimatedTime": 30
+      },
+      {
+        "stepNumber": 4,
+        "operation": "FINAL INSPECTION",
+        "workCenter": "QC",
+        "instructions": "Quality control inspection",
+        "subSteps": [
+          "Visual inspection",
+          "Connector mating test",
+          "Flexibility test",
+          "Label verification",
+          "Package for shipment"
+        ],
+        "estimatedTime": 20
+      }
+    ]
+  },
+  "CABLE_ASSY": {
+    "steps": [
+      {
+        "stepNumber": 1,
+        "operation": "CABLE HARNESS PREP",
+        "workCenter": "HARNESS_PREP",
+        "instructions": "Prepare cable harness components",
+        "subSteps": [
+          "Cut all cables to length",
+          "Strip and prepare wire ends",
+          "Sort cables by routing",
+          "Apply identification labels",
+          "Prepare routing fixtures"
+        ],
+        "estimatedTime": 90
+      },
+      {
+        "stepNumber": 2,
+        "operation": "HARNESS ASSEMBLY",
+        "workCenter": "HARNESS_ASSY",
+        "instructions": "Assemble cable harness",
+        "subSteps": [
+          "Route cables per drawing",
+          "Install tie wraps and clamps",
+          "Apply protective sleeving",
+          "Install breakout boots",
+          "Form to required shape"
+        ],
+        "estimatedTime": 150
+      },
+      {
+        "stepNumber": 3,
+        "operation": "CONNECTOR INSTALLATION",
+        "workCenter": "CONNECTOR_ASSY",
+        "instructions": "Install all connectors",
+        "subSteps": [
+          "Install connector pins",
+          "Solder wire connections",
+          "Apply connector shells",
+          "Install strain reliefs",
+          "Test connector retention"
+        ],
+        "estimatedTime": 120
+      },
+      {
+        "stepNumber": 4,
+        "operation": "ELECTRICAL TEST",
+        "workCenter": "HARNESS_TEST",
+        "instructions": "Complete electrical testing",
+        "subSteps": [
+          "Continuity testing",
+          "Insulation resistance test",
+          "Hi-pot testing if required",
+          "Connector mating verification",
+          "Generate test report"
+        ],
+        "estimatedTime": 60
+      },
+      {
+        "stepNumber": 5,
+        "operation": "FINAL ASSEMBLY",
+        "workCenter": "FINAL_ASSY",
+        "instructions": "Final assembly and inspection",
+        "subSteps": [
+          "Install protective covers",
+          "Apply final labels",
+          "Final visual inspection",
+          "Package for delivery",
+          "Update traveler documentation"
+        ],
+        "estimatedTime": 45
+      }
+    ]
+  }
+}

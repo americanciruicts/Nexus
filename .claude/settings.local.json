@@ -2,10 +2,15 @@
   "permissions": {
     "allow": [
       "Bash(npx create-next-app:*)",
-      "Bash(docker-compose up:*)",
+      "Bash(npm install:*)",
+      "Bash(rm:*)",
+      "Bash(cp:*)",
+      "Bash(chmod:*)",
       "Bash(docker:*)",
-      "Bash(start \"Docker Desktop\" \"C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe\")",
-      "Bash(timeout:*)"
+      "Bash(docker-compose:*)",
+      "Bash(powershell:*)",
+      "Bash(timeout:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

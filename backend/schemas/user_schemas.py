@@ -1,40 +1,45 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, Field, EmailStr
 from typing import Optional
 from datetime import datetime
+from models import UserRole
 
 class UserBase(BaseModel):
-    username: str
+    username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
-    role: str = "operator"
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
+    first_name: str = Field(..., max_length=50)
+    last_name: str = Field(..., max_length=50)
+    role: UserRole = UserRole.OPERATOR
+    is_approver: bool = False
 
 class UserCreate(UserBase):
-    password: str
+    password: str = Field(..., min_length=6)
 
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
-    role: Optional[str] = None
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
+    first_name: Optional[str] = Field(None, max_length=50)
+    last_name: Optional[str] = Field(None, max_length=50)
+    role: Optional[UserRole] = None
+    is_approver: Optional[bool] = None
+    is_active: Optional[bool] = None
 
-class UserSchema(BaseModel):
+class User(UserBase):
     id: int
-    username: str
-    email: str
-    role: str
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
+    is_active: bool
     created_at: datetime
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
 
-class UserLoginSchema(BaseModel):
+class UserLogin(BaseModel):
     username: str
     password: str
 
-class TokenSchema(BaseModel):
+class Token(BaseModel):
     access_token: str
-    token_type: str
-    user: UserSchema
+    token_type: str = "bearer"
+    expires_in: int
+
+class TokenData(BaseModel):
+    user_id: Optional[int] = None
+    username: Optional[str] = None

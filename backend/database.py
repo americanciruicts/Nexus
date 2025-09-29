@@ -3,13 +3,19 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://nexus_user:nexus_password@localhost:5432/nexus_db")
+# Database URL from environment variable
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:3001/nexus")
 
+# Create SQLAlchemy engine
 engine = create_engine(DATABASE_URL)
+
+# Create SessionLocal class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# Create Base class
 Base = declarative_base()
 
+# Dependency to get database session
 def get_db():
     db = SessionLocal()
     try:

@@ -1,55 +1,65 @@
+
 services:
-  # PostgreSQL Database
   postgres:
-    image: postgres:15
+    image: postgres:15-alpine
+    container_name: nexus_postgres
     environment:
-      POSTGRES_DB: nexus_db
-      POSTGRES_USER: nexus_user
-      POSTGRES_PASSWORD: nexus_password
+      POSTGRES_DB: nexus
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "3001:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init-db:/docker-entrypoint-initdb.d
+      - ./db/init-db:/docker-entrypoint-initdb.d
     networks:
-      - nexus-network
+      - nexus_network
 
-  # Python Backend API
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    container_name: nexus_backend
     environment:
-      DATABASE_URL: postgresql://nexus_user:nexus_password@postgres:5432/nexus_db
-      JWT_SECRET: nexus_jwt_secret_key_2024
-      CORS_ORIGINS: http://localhost:4000,http://frontend:3000
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/nexus
+      SECRET_KEY: your-secret-key-change-in-production
+      SMTP_SERVER: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USERNAME: your-email@gmail.com
+      SMTP_PASSWORD: your-app-password
+    ports:
+      - "3002:8000"
     depends_on:
       - postgres
     volumes:
       - ./backend:/app
-      - /app/node_modules
+      - /app/__pycache__
     networks:
-      - nexus-network
+      - nexus_network
 
-  # Next.js Frontend
   frontend:
     build:
-      context: ./nexus-app
+      context: ./frontend
       dockerfile: Dockerfile
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:4000/api
+    container_name: nexus_frontend
+    ports:
+      - "3003:3000"
     depends_on:
       - backend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3002
     volumes:
-      - ./nexus-app:/app
+      - ./frontend:/app
       - /app/node_modules
       - /app/.next
     networks:
-      - nexus-network
+      - nexus_network
 
-  # Nginx Reverse Proxy
   nginx:
     image: nginx:alpine
+    container_name: nexus_nginx
     ports:
-      - "4000:80"
+      - "3000:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
@@ -57,11 +67,11 @@ services:
       - frontend
       - backend
     networks:
-      - nexus-network
+      - nexus_network
+
+networks:
+  nexus_network:
+    driver: bridge
 
 volumes:
   postgres_data:
-
-networks:
-  nexus-network:
-    driver: bridge

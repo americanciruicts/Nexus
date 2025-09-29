@@ -1,254 +1,338 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List, Optional
-from pydantic import BaseModel
-from datetime import date, datetime
-import models
+from typing import List
+import json
+
 from database import get_db
+from models import User, Traveler, ProcessStep, SubStep, ManualStep, AuditLog, WorkOrder
+from schemas.traveler_schemas import (
+    TravelerCreate, Traveler as TravelerSchema, TravelerUpdate,
+    TravelerList, ProcessStepCreate, ManualStepCreate
+)
 from routers.auth import get_current_user
-import barcode
-from barcode.writer import ImageWriter
-import io
-import base64
+from services.email_service import send_approval_notification
 
 router = APIRouter()
 
-class TravelerCreate(BaseModel):
-    po_number: str
-    traveler_type_id: int
-    job_number: Optional[str] = None
+# Memory store for manufacturing process steps
+MANUFACTURING_STEPS = {
+    "PCB": [
+        {
+            "step_number": 1,
+            "operation": "INCOMING INSPECTION",
+            "work_center_code": "INCOMING",
+            "instructions": "Verify PCB against specifications",
+            "sub_steps": [
+                {"step_number": "1.1", "description": "Check part number and revision"},
+                {"step_number": "1.2", "description": "Verify quantity received"},
+                {"step_number": "1.3", "description": "Visual inspection for damage"},
+                {"step_number": "1.4", "description": "Dimensional verification"},
+                {"step_number": "1.5", "description": "Documentation review"}
+            ],
+            "estimated_time": 30,
+            "is_required": True
+        },
+        {
+            "step_number": 2,
+            "operation": "PCB PREP",
+            "work_center_code": "PCB_PREP",
+            "instructions": "Prepare PCB for assembly process",
+            "sub_steps": [
+                {"step_number": "2.1", "description": "Clean PCB surface"},
+                {"step_number": "2.2", "description": "Apply conformal coating if required"},
+                {"step_number": "2.3", "description": "Mark identification numbers"},
+                {"step_number": "2.4", "description": "Pre-heat if specified"}
+            ],
+            "estimated_time": 45,
+            "is_required": True
+        }
+    ],
+    "ASSY": [
+        {
+            "step_number": 1,
+            "operation": "KIT PREPARATION",
+            "work_center_code": "KITTING",
+            "instructions": "Prepare all components for assembly",
+            "sub_steps": [
+                {"step_number": "1.1", "description": "Gather all required parts"},
+                {"step_number": "1.2", "description": "Verify part numbers and quantities"},
+                {"step_number": "1.3", "description": "Check for damaged components"}
+            ],
+            "estimated_time": 60,
+            "is_required": True
+        }
+    ],
+    "CABLE": [
+        {
+            "step_number": 1,
+            "operation": "CABLE PREPARATION",
+            "work_center_code": "CABLE_PREP",
+            "instructions": "Prepare cable for assembly",
+            "sub_steps": [
+                {"step_number": "1.1", "description": "Cut cable to specified length"},
+                {"step_number": "1.2", "description": "Strip wire ends"},
+                {"step_number": "1.3", "description": "Identify conductor wires"}
+            ],
+            "estimated_time": 45,
+            "is_required": True
+        }
+    ]
+}
 
-class TravelerResponse(BaseModel):
-    id: int
-    traveler_number: str
-    job_number: Optional[str]
-    barcode: Optional[str]
-    status: str
-    revision: int
-    traveler_type: dict
-    purchase_order: dict
-    created_at: datetime
+@router.get("/manufacturing-steps/{traveler_type}")
+async def get_manufacturing_steps(traveler_type: str):
+    """Get manufacturing process steps for a specific traveler type"""
+    if traveler_type not in MANUFACTURING_STEPS:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Manufacturing steps not found for traveler type: {traveler_type}"
+        )
+    return MANUFACTURING_STEPS[traveler_type]
 
-    class Config:
-        from_attributes = True
+@router.get("/work-order/{identifier}")
+async def get_work_order_data(identifier: str, db: Session = Depends(get_db)):
+    """Auto-populate traveler data from job number or work order number"""
+    work_order = db.query(WorkOrder).filter(
+        (WorkOrder.job_number == identifier) |
+        (WorkOrder.work_order_number == identifier)
+    ).first()
 
-class BOMItemCreate(BaseModel):
-    part_number: str
-    description: Optional[str] = None
-    quantity: int
-    unit_price: Optional[float] = None
-    supplier: Optional[str] = None
-    notes: Optional[str] = None
+    if not work_order:
+        # Return mock data for demo purposes
+        if identifier == "8414L":
+            return {
+                "job_number": "8414L",
+                "work_order_number": "8414L",
+                "traveler_type": "ASSY",
+                "part_number": "METSHIFT",
+                "part_description": "METSHIFT Assembly",
+                "revision": "V0.2",
+                "available_revisions": ["V0.1", "V0.2", "V1.0"],
+                "quantity": 250,
+                "customer_code": "750",
+                "customer_name": "Customer Supply",
+                "work_center": "ASSEMBLY",
+                "priority": "NORMAL"
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Work order not found"
+            )
 
-class ProcessStepCreate(BaseModel):
-    step_number: int
-    step_name: str
-    description: Optional[str] = None
-    estimated_hours: Optional[float] = None
-    required_role: Optional[str] = None
+    # Parse process template if available
+    process_steps = []
+    if work_order.process_template:
+        try:
+            process_steps = json.loads(work_order.process_template)
+        except json.JSONDecodeError:
+            pass
 
-def generate_barcode(traveler_number: str) -> str:
-    """Generate a barcode for the traveler"""
-    try:
-        code128 = barcode.get_barcode_class('code128')
-        barcode_instance = code128(traveler_number, writer=ImageWriter())
+    return {
+        "job_number": work_order.job_number,
+        "work_order_number": work_order.work_order_number,
+        "part_number": work_order.part_number,
+        "part_description": work_order.part_description,
+        "revision": work_order.revision,
+        "quantity": work_order.quantity,
+        "customer_code": work_order.customer_code,
+        "customer_name": work_order.customer_name,
+        "work_center": work_order.work_center,
+        "priority": work_order.priority.value,
+        "process_steps": process_steps
+    }
 
-        buffer = io.BytesIO()
-        barcode_instance.write(buffer)
-        buffer.seek(0)
-
-        barcode_base64 = base64.b64encode(buffer.getvalue()).decode()
-        return f"data:image/png;base64,{barcode_base64}"
-    except Exception:
-        return ""
-
-def generate_traveler_number(po_number: str, traveler_type: str, db: Session) -> str:
-    """Generate unique traveler number"""
-    count = db.query(models.Traveler).count() + 1
-    return f"{po_number}-{traveler_type}-{count:04d}"
-
-@router.post("/", response_model=TravelerResponse)
+@router.post("/", response_model=TravelerSchema)
 async def create_traveler(
     traveler_data: TravelerCreate,
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    # Get PO
-    po = db.query(models.PurchaseOrder).filter(
-        models.PurchaseOrder.po_number == traveler_data.po_number
-    ).first()
+    """Create a new traveler"""
 
-    if not po:
-        raise HTTPException(status_code=404, detail="Purchase Order not found")
-
-    # Get traveler type
-    traveler_type = db.query(models.TravelerType).filter(
-        models.TravelerType.id == traveler_data.traveler_type_id
-    ).first()
-
-    if not traveler_type:
-        raise HTTPException(status_code=404, detail="Traveler type not found")
-
-    # Generate traveler number and barcode
-    traveler_number = generate_traveler_number(po.po_number, traveler_type.type_name, db)
-    barcode_data = generate_barcode(traveler_number)
+    # Check if user needs approval (not Kris or Adam)
+    if not current_user.is_approver and current_user.username not in ["Kris", "Adam"]:
+        # Create approval request instead of direct creation
+        # For now, we'll create the traveler and mark it as pending approval
+        pass
 
     # Create traveler
-    traveler = models.Traveler(
-        traveler_number=traveler_number,
-        po_id=po.id,
-        traveler_type_id=traveler_data.traveler_type_id,
+    db_traveler = Traveler(
         job_number=traveler_data.job_number,
-        barcode=barcode_data,
+        work_order_number=traveler_data.work_order_number,
+        traveler_type=traveler_data.traveler_type,
+        part_number=traveler_data.part_number,
+        part_description=traveler_data.part_description,
+        revision=traveler_data.revision,
+        quantity=traveler_data.quantity,
+        customer_code=traveler_data.customer_code,
+        customer_name=traveler_data.customer_name,
+        priority=traveler_data.priority,
+        work_center=traveler_data.work_center,
+        notes=traveler_data.notes,
         created_by=current_user.id
     )
 
-    db.add(traveler)
+    db.add(db_traveler)
     db.commit()
-    db.refresh(traveler)
+    db.refresh(db_traveler)
 
-    return {
-        "id": traveler.id,
-        "traveler_number": traveler.traveler_number,
-        "job_number": traveler.job_number,
-        "barcode": traveler.barcode,
-        "status": traveler.status,
-        "revision": traveler.revision,
-        "traveler_type": {
-            "id": traveler_type.id,
-            "type_name": traveler_type.type_name,
-            "color_code": traveler_type.color_code
-        },
-        "purchase_order": {
-            "id": po.id,
-            "po_number": po.po_number,
-            "customer_name": po.customer_name
-        },
-        "created_at": traveler.created_at
-    }
+    # Create process steps
+    for step_data in traveler_data.process_steps:
+        db_step = ProcessStep(
+            traveler_id=db_traveler.id,
+            step_number=step_data.step_number,
+            operation=step_data.operation,
+            work_center_code=step_data.work_center_code,
+            instructions=step_data.instructions,
+            estimated_time=step_data.estimated_time,
+            is_required=step_data.is_required
+        )
+        db.add(db_step)
+        db.commit()
+        db.refresh(db_step)
 
-@router.get("/", response_model=List[TravelerResponse])
+        # Create sub-steps
+        for sub_step_data in step_data.sub_steps:
+            db_sub_step = SubStep(
+                process_step_id=db_step.id,
+                step_number=sub_step_data.step_number,
+                description=sub_step_data.description
+            )
+            db.add(db_sub_step)
+
+    # Create manual steps
+    for manual_step_data in traveler_data.manual_steps:
+        db_manual_step = ManualStep(
+            traveler_id=db_traveler.id,
+            description=manual_step_data.description,
+            added_by=current_user.id
+        )
+        db.add(db_manual_step)
+
+    db.commit()
+
+    # Create audit log
+    audit_log = AuditLog(
+        traveler_id=db_traveler.id,
+        user_id=current_user.id,
+        action="CREATED",
+        timestamp=db_traveler.created_at,
+        ip_address="127.0.0.1",  # Get from request
+        user_agent="NEXUS-Frontend"  # Get from request
+    )
+    db.add(audit_log)
+    db.commit()
+
+    # Send notification if approval needed
+    if not current_user.is_approver and current_user.username not in ["Kris", "Adam"]:
+        await send_approval_notification(
+            traveler_id=db_traveler.id,
+            requested_by=current_user.username,
+            request_type="CREATE",
+            db=db
+        )
+
+    return db_traveler
+
+@router.get("/", response_model=List[TravelerList])
 async def get_travelers(
     skip: int = 0,
     limit: int = 100,
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    travelers = db.query(models.Traveler).offset(skip).limit(limit).all()
+    """Get list of travelers"""
+    travelers = db.query(Traveler).offset(skip).limit(limit).all()
+    return travelers
 
-    result = []
-    for traveler in travelers:
-        result.append({
-            "id": traveler.id,
-            "traveler_number": traveler.traveler_number,
-            "job_number": traveler.job_number,
-            "barcode": traveler.barcode,
-            "status": traveler.status,
-            "revision": traveler.revision,
-            "traveler_type": {
-                "id": traveler.traveler_type.id,
-                "type_name": traveler.traveler_type.type_name,
-                "color_code": traveler.traveler_type.color_code
-            },
-            "purchase_order": {
-                "id": traveler.purchase_order.id,
-                "po_number": traveler.purchase_order.po_number,
-                "customer_name": traveler.purchase_order.customer_name
-            },
-            "created_at": traveler.created_at
-        })
-
-    return result
-
-@router.get("/{traveler_id}", response_model=TravelerResponse)
+@router.get("/{traveler_id}", response_model=TravelerSchema)
 async def get_traveler(
     traveler_id: int,
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    traveler = db.query(models.Traveler).filter(models.Traveler.id == traveler_id).first()
-
+    """Get a specific traveler by ID"""
+    traveler = db.query(Traveler).filter(Traveler.id == traveler_id).first()
     if not traveler:
-        raise HTTPException(status_code=404, detail="Traveler not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Traveler not found"
+        )
+    return traveler
 
-    return {
-        "id": traveler.id,
-        "traveler_number": traveler.traveler_number,
-        "job_number": traveler.job_number,
-        "barcode": traveler.barcode,
-        "status": traveler.status,
-        "revision": traveler.revision,
-        "traveler_type": {
-            "id": traveler.traveler_type.id,
-            "type_name": traveler.traveler_type.type_name,
-            "color_code": traveler.traveler_type.color_code
-        },
-        "purchase_order": {
-            "id": traveler.purchase_order.id,
-            "po_number": traveler.purchase_order.po_number,
-            "customer_name": traveler.purchase_order.customer_name
-        },
-        "created_at": traveler.created_at
-    }
-
-@router.post("/{traveler_id}/bom")
-async def add_bom_item(
+@router.put("/{traveler_id}", response_model=TravelerSchema)
+async def update_traveler(
     traveler_id: int,
-    bom_item: BOMItemCreate,
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    traveler_data: TravelerUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    traveler = db.query(models.Traveler).filter(models.Traveler.id == traveler_id).first()
-
+    """Update a traveler"""
+    traveler = db.query(Traveler).filter(Traveler.id == traveler_id).first()
     if not traveler:
-        raise HTTPException(status_code=404, detail="Traveler not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Traveler not found"
+        )
 
-    bom = models.BOMItem(
-        traveler_id=traveler_id,
-        **bom_item.dict()
-    )
+    # Check if user needs approval for edits (not Kris or Adam)
+    if not current_user.is_approver and current_user.username not in ["Kris", "Adam"]:
+        await send_approval_notification(
+            traveler_id=traveler.id,
+            requested_by=current_user.username,
+            request_type="EDIT",
+            db=db
+        )
+        raise HTTPException(
+            status_code=status.HTTP_202_ACCEPTED,
+            detail="Edit request sent for approval"
+        )
 
-    db.add(bom)
+    # Update traveler fields
+    update_data = traveler_data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(traveler, field, value)
+
     db.commit()
-    db.refresh(bom)
+    db.refresh(traveler)
 
-    return {"message": "BOM item added successfully", "id": bom.id}
+    # Create audit log for each changed field
+    for field, value in update_data.items():
+        audit_log = AuditLog(
+            traveler_id=traveler.id,
+            user_id=current_user.id,
+            action="UPDATED",
+            field_changed=field,
+            new_value=str(value),
+            ip_address="127.0.0.1",
+            user_agent="NEXUS-Frontend"
+        )
+        db.add(audit_log)
 
-@router.post("/{traveler_id}/process-step")
-async def add_process_step(
+    db.commit()
+    return traveler
+
+@router.delete("/{traveler_id}")
+async def delete_traveler(
     traveler_id: int,
-    process_step: ProcessStepCreate,
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    traveler = db.query(models.Traveler).filter(models.Traveler.id == traveler_id).first()
+    """Delete a traveler (admin only)"""
+    if current_user.role != "ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can delete travelers"
+        )
 
+    traveler = db.query(Traveler).filter(Traveler.id == traveler_id).first()
     if not traveler:
-        raise HTTPException(status_code=404, detail="Traveler not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Traveler not found"
+        )
 
-    step = models.ProcessSequence(
-        traveler_id=traveler_id,
-        **process_step.dict()
-    )
-
-    db.add(step)
+    db.delete(traveler)
     db.commit()
-    db.refresh(step)
-
-    return {"message": "Process step added successfully", "id": step.id}
-
-@router.get("/types/")
-async def get_traveler_types(
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    types = db.query(models.TravelerType).all()
-    return [
-        {
-            "id": t.id,
-            "type_name": t.type_name,
-            "description": t.description,
-            "color_code": t.color_code
-        }
-        for t in types
-    ]
+    return {"message": "Traveler deleted successfully"}

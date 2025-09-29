@@ -1,88 +1,147 @@
-from pydantic import BaseModel
-from typing import Optional, List
-from datetime import datetime, date
+from pydantic import BaseModel, Field
+from typing import List, Optional
+from datetime import datetime
+from models import TravelerType, TravelerStatus, Priority, ApprovalStatus
 
-class TravelerBase(BaseModel):
-    po_number: str
-    traveler_type_id: int
-    job_number: Optional[str] = None
+class SubStepBase(BaseModel):
+    step_number: str
+    description: str
+    is_completed: bool = False
+    notes: Optional[str] = None
 
-class TravelerCreate(TravelerBase):
+class SubStepCreate(SubStepBase):
     pass
 
-class TravelerUpdate(BaseModel):
-    status: Optional[str] = None
-    revision: Optional[int] = None
-
-class TravelerTypeSchema(BaseModel):
+class SubStep(SubStepBase):
     id: int
-    type_name: str
-    description: Optional[str] = None
-    color_code: str
-
-    class Config:
-        from_attributes = True
-
-class PurchaseOrderSchema(BaseModel):
-    id: int
-    po_number: str
-    customer_name: str
-    job_number: Optional[str] = None
-
-    class Config:
-        from_attributes = True
-
-class TravelerSchema(BaseModel):
-    id: int
-    traveler_number: str
-    job_number: Optional[str] = None
-    barcode: Optional[str] = None
-    status: str
-    revision: int
-    traveler_type: TravelerTypeSchema
-    purchase_order: PurchaseOrderSchema
+    process_step_id: int
+    completed_by: Optional[int] = None
+    completed_at: Optional[datetime] = None
     created_at: datetime
 
     class Config:
         from_attributes = True
 
-class BOMItemCreate(BaseModel):
-    part_number: str
-    description: Optional[str] = None
-    quantity: int
-    unit_price: Optional[float] = None
-    supplier: Optional[str] = None
-    notes: Optional[str] = None
+class ProcessStepBase(BaseModel):
+    step_number: int
+    operation: str
+    work_center_code: str
+    instructions: str
+    estimated_time: Optional[int] = None
+    is_required: bool = True
 
-class BOMItemSchema(BaseModel):
+class ProcessStepCreate(ProcessStepBase):
+    sub_steps: List[SubStepCreate] = []
+
+class ProcessStep(ProcessStepBase):
     id: int
-    part_number: str
-    description: Optional[str] = None
-    quantity: int
-    unit_price: Optional[float] = None
-    supplier: Optional[str] = None
-    notes: Optional[str] = None
+    traveler_id: int
+    is_completed: bool = False
+    completed_by: Optional[int] = None
+    completed_at: Optional[datetime] = None
+    created_at: datetime
+    sub_steps: List[SubStep] = []
 
     class Config:
         from_attributes = True
 
-class ProcessStepCreate(BaseModel):
-    step_number: int
-    step_name: str
-    description: Optional[str] = None
-    estimated_hours: Optional[float] = None
-    required_role: Optional[str] = None
+class ManualStepBase(BaseModel):
+    description: str
 
-class ProcessStepSchema(BaseModel):
+class ManualStepCreate(ManualStepBase):
+    pass
+
+class ManualStep(ManualStepBase):
     id: int
-    step_number: int
-    step_name: str
-    description: Optional[str] = None
-    estimated_hours: Optional[float] = None
-    required_role: Optional[str] = None
-    is_completed: bool
-    completed_by: Optional[int] = None
+    traveler_id: int
+    added_by: int
+    added_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class TravelerBase(BaseModel):
+    job_number: str = Field(..., max_length=50)
+    work_order_number: Optional[str] = Field(None, max_length=50)
+    traveler_type: TravelerType
+    part_number: str = Field(..., max_length=50)
+    part_description: str = Field(..., max_length=200)
+    revision: str = Field(..., max_length=20)
+    quantity: int = Field(..., gt=0)
+    customer_code: Optional[str] = Field(None, max_length=20)
+    customer_name: Optional[str] = Field(None, max_length=100)
+    priority: Priority = Priority.NORMAL
+    work_center: str = Field(..., max_length=20)
+    notes: Optional[str] = None
+
+class TravelerCreate(TravelerBase):
+    process_steps: List[ProcessStepCreate] = []
+    manual_steps: List[ManualStepCreate] = []
+
+class TravelerUpdate(BaseModel):
+    job_number: Optional[str] = Field(None, max_length=50)
+    work_order_number: Optional[str] = Field(None, max_length=50)
+    traveler_type: Optional[TravelerType] = None
+    part_number: Optional[str] = Field(None, max_length=50)
+    part_description: Optional[str] = Field(None, max_length=200)
+    revision: Optional[str] = Field(None, max_length=20)
+    quantity: Optional[int] = Field(None, gt=0)
+    customer_code: Optional[str] = Field(None, max_length=20)
+    customer_name: Optional[str] = Field(None, max_length=100)
+    priority: Optional[Priority] = None
+    work_center: Optional[str] = Field(None, max_length=20)
+    status: Optional[TravelerStatus] = None
+    notes: Optional[str] = None
+
+class Traveler(TravelerBase):
+    id: int
+    status: TravelerStatus
+    created_by: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    process_steps: List[ProcessStep] = []
+    manual_steps: List[ManualStep] = []
+
+    class Config:
+        from_attributes = True
+
+class TravelerList(BaseModel):
+    id: int
+    job_number: str
+    work_order_number: Optional[str]
+    traveler_type: TravelerType
+    part_number: str
+    part_description: str
+    revision: str
+    quantity: int
+    priority: Priority
+    status: TravelerStatus
+    work_center: str
+    created_at: datetime
+    created_by: int
+
+    class Config:
+        from_attributes = True
+
+class ApprovalBase(BaseModel):
+    request_type: str = Field(..., pattern="^(EDIT|COMPLETE|CANCEL)$")
+    request_details: str
+
+class ApprovalCreate(ApprovalBase):
+    traveler_id: int
+
+class Approval(ApprovalBase):
+    id: int
+    traveler_id: int
+    requested_by: int
+    requested_at: datetime
+    status: ApprovalStatus
+    approved_by: Optional[int] = None
+    approved_at: Optional[datetime] = None
+    rejected_by: Optional[int] = None
+    rejected_at: Optional[datetime] = None
+    rejection_reason: Optional[str] = None
 
     class Config:
         from_attributes = True

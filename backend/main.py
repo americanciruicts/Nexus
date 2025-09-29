@@ -2,29 +2,35 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-import os
-from database import get_db, engine
-import models
-from routers import auth, travelers, users, reports
+from contextlib import asynccontextmanager
+import uvicorn
 
-models.Base.metadata.create_all(bind=engine)
+from database import engine, get_db
+from models import Base
+from routers import travelers, users, work_orders, approvals, labor, auth, barcodes
+
+# Create tables
+Base.metadata.create_all(bind=engine)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    print("NEXUS Backend starting up...")
+    yield
+    # Shutdown
+    print("NEXUS Backend shutting down...")
 
 app = FastAPI(
     title="NEXUS API",
-    description="Traveler Workflow & Documentation Enhancement System",
-    version="1.0.0"
+    description="American Circuits Traveler Management System API",
+    version="1.0.0",
+    lifespan=lifespan
 )
 
-# Configure CORS
-origins = [
-    "http://localhost:3000",
-    "http://frontend:3000",
-    "http://localhost",
-]
-
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],  # Configure for production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -34,12 +40,18 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/auth", tags=["authentication"])
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(travelers.router, prefix="/travelers", tags=["travelers"])
-app.include_router(reports.router, prefix="/reports", tags=["reports"])
+app.include_router(work_orders.router, prefix="/work-orders", tags=["work-orders"])
+app.include_router(approvals.router, prefix="/approvals", tags=["approvals"])
+app.include_router(labor.router, prefix="/labor", tags=["labor"])
+app.include_router(barcodes.router, prefix="/barcodes", tags=["barcodes"])
 
 @app.get("/")
 async def root():
-    return {"message": "NEXUS API - Traveler Workflow & Documentation Enhancement System"}
+    return {"message": "NEXUS API - American Circuits Traveler Management System"}
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "NEXUS API"}
+    return {"status": "healthy", "service": "nexus-backend"}
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
