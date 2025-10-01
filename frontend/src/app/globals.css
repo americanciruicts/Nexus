@@ -1,8 +1,11 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --primary-blue: #2563eb;
+  --primary-blue-dark: #1d4ed8;
+  --primary-blue-light: #3b82f6;
 }
 
 @theme inline {
@@ -14,61 +17,454 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #ffffff;
-    --foreground: #171717;
+    --background: #f8fafc;
+    --foreground: #0f172a;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Fix input field text visibility */
-input, textarea, select {
-  color: #171717 !important;
+/* CRITICAL FIX: Force all form inputs to have BLACK text on WHITE background */
+input,
+textarea,
+select {
+  color: #000000 !important;
   background-color: #ffffff !important;
+  border: 2px solid #cbd5e1 !important;
+  transition: all 0.2s ease !important;
+  -webkit-text-fill-color: #000000 !important;
+  font-size: 1rem !important;
+  font-weight: 500 !important;
+  line-height: 1.5 !important;
+  padding: 0.75rem 1rem !important;
 }
 
-input::placeholder, textarea::placeholder {
-  color: #6b7280 !important;
-}
-
-/* Ensure proper text colors for forms */
-.form-input {
-  color: #171717 !important;
+input:focus,
+textarea:focus,
+select:focus {
+  color: #000000 !important;
   background-color: #ffffff !important;
+  border-color: #2563eb !important;
+  outline: none !important;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15) !important;
+  transform: translateY(-1px);
+  -webkit-text-fill-color: #000000 !important;
 }
 
-/* Navigation styles */
+input::placeholder,
+textarea::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}
+
+input:disabled,
+textarea:disabled,
+select:disabled {
+  background-color: #f1f5f9 !important;
+  color: #64748b !important;
+  cursor: not-allowed !important;
+  -webkit-text-fill-color: #64748b !important;
+  opacity: 0.7 !important;
+}
+
+/* Ensure proper text colors for all input types */
+input[type="text"],
+input[type="number"],
+input[type="date"],
+input[type="email"],
+input[type="password"],
+input[type="tel"],
+input[type="url"],
+textarea,
+select {
+  color: #000000 !important;
+  background-color: #ffffff !important;
+  -webkit-text-fill-color: #000000 !important;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+/* Form container text visibility */
+form input,
+form textarea,
+form select {
+  color: #000000 !important;
+  background-color: #ffffff !important;
+  -webkit-text-fill-color: #000000 !important;
+}
+
+/* Option elements in select dropdowns */
+option {
+  color: #000000 !important;
+  background-color: #ffffff !important;
+  -webkit-text-fill-color: #000000 !important;
+}
+
+/* Disable dark mode entirely */
+* {
+  color-scheme: light !important;
+}
+
+html, body {
+  color-scheme: light !important;
+}
+
+/* Larger textareas for better data entry */
+textarea {
+  min-height: 120px !important;
+  resize: vertical !important;
+}
+
+/* Make sure auto-filled inputs are visible */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px white inset !important;
+  -webkit-text-fill-color: #000000 !important;
+  color: #000000 !important;
+}
+
+/* Print Styles - SINGLE PAGE ONLY */
+@media print {
+  /* Hide unnecessary elements when printing */
+  .no-print,
+  nav,
+  header,
+  footer,
+  button:not(.print-show),
+  .print-hide {
+    display: none !important;
+  }
+
+  /* Reset page margins and sizing - TIGHT MARGINS */
+  @page {
+    margin: 0.3cm;
+    size: letter portrait;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background: white !important;
+    color: black !important;
+  }
+
+  /* FORCE SINGLE PAGE - NO PAGE BREAKS */
+  .print-page-break {
+    page-break-before: always !important;
+    break-before: always !important;
+  }
+
+  /* Ensure proper backgrounds and colors */
+  * {
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* NO PAGE BREAKS INSIDE */
+  .space-y-6,
+  .space-y-4,
+  .space-y-3,
+  .space-y-2 {
+    page-break-inside: avoid !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    gap: 2px !important;
+  }
+
+  /* Make everything compact */
+  .space-y-6 > * {
+    margin-top: 2px !important;
+    margin-bottom: 2px !important;
+  }
+
+  /* Traveler specific print styles - SUPER COMPACT */
+  .print-container {
+    width: 100% !important;
+    max-width: none !important;
+    padding: 0.1cm !important;
+    font-size: 7pt !important;
+  }
+
+  /* Compact headers and sections - MINIMAL SPACE */
+  h1, h2, h3 {
+    font-size: 9pt !important;
+    margin: 1px 0 !important;
+    padding: 1px 0 !important;
+    page-break-after: avoid !important;
+  }
+
+  /* Super compact tables */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 6pt !important;
+    margin: 1px 0 !important;
+  }
+
+  th, td {
+    border: 1px solid #000 !important;
+    padding: 1px 2px !important;
+    font-size: 6pt !important;
+    line-height: 1.1 !important;
+  }
+
+  /* Compact divs and sections */
+  div {
+    margin: 0 !important;
+    padding: 2px !important;
+  }
+
+  /* Borders minimal */
+  .border-2,
+  .border {
+    border-width: 1px !important;
+  }
+
+  .rounded-lg,
+  .rounded-xl,
+  .rounded {
+    border-radius: 2px !important;
+  }
+
+  /* Padding minimal */
+  .p-4,
+  .p-5,
+  .p-6,
+  .px-4,
+  .py-4 {
+    padding: 2px !important;
+  }
+
+  .mb-2,
+  .mb-3,
+  .mb-4,
+  .mt-2,
+  .mt-3,
+  .mt-4,
+  .mt-6 {
+    margin-top: 1px !important;
+    margin-bottom: 1px !important;
+  }
+
+  /* Text sizes minimal */
+  .text-sm,
+  .text-xs,
+  .text-base {
+    font-size: 6pt !important;
+  }
+
+  .text-xl,
+  .text-2xl {
+    font-size: 8pt !important;
+  }
+
+  /* Min heights reduced */
+  .min-h-\[80px\],
+  .min-h-\[40px\],
+  .min-h-\[300px\] {
+    min-height: 20px !important;
+  }
+
+  /* Overview cards should be inline */
+  .print-inline {
+    display: inline-block !important;
+    width: 24% !important;
+    margin: 0 0.5% !important;
+    vertical-align: top !important;
+  }
+
+  /* Compact spacing */
+  .space-y-6 > * + * {
+    margin-top: 0.2cm !important;
+  }
+
+  .p-6, .p-8 {
+    padding: 0.2cm !important;
+  }
+
+  .mb-6, .mb-8 {
+    margin-bottom: 0.2cm !important;
+  }
+
+  /* Border adjustments */
+  .border, .border-2 {
+    border-width: 1px !important;
+  }
+
+  .rounded-xl, .rounded-lg {
+    border-radius: 0 !important;
+  }
+
+  /* Remove shadows and gradients */
+  .shadow, .shadow-lg, .shadow-md {
+    box-shadow: none !important;
+  }
+
+  .bg-gradient-to-r,
+  .bg-gradient-to-br,
+  .bg-gradient-to-l {
+    background: white !important;
+  }
+
+  /* Ensure visibility of all text */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Force single page */
+  .print-page {
+    page-break-after: avoid !important;
+    page-break-before: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}
+
+/* Navigation styles with modern look */
 .nav-link {
-  color: #374151 !important;
-  transition: color 0.2s ease;
+  color: #475569 !important;
+  font-weight: 600 !important;
+  transition: all 0.2s ease !important;
+  position: relative !important;
 }
 
 .nav-link:hover {
   color: #2563eb !important;
+  transform: translateY(-1px);
 }
 
-/* Button styles */
+.nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #2563eb, #3b82f6);
+  transform: scaleX(0);
+  transition: transform 0.2s ease;
+}
+
+.nav-link:hover::after {
+  transform: scaleX(1);
+}
+
+/* Modern Button styles */
 .btn-primary {
-  background-color: #2563eb;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   color: #ffffff;
-  border: 1px solid #2563eb;
+  border: none;
+  font-weight: 600;
+  box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);
+  transition: all 0.2s ease;
 }
 
 .btn-primary:hover {
-  background-color: #1d4ed8;
-  border: 1px solid #1d4ed8;
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+  box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.4);
+  transform: translateY(-2px);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);
 }
 
 .btn-secondary {
   background-color: #ffffff;
-  color: #374151;
-  border: 1px solid #d1d5db;
+  color: #475569;
+  border: 2px solid #e2e8f0;
+  font-weight: 600;
+  transition: all 0.2s ease;
 }
 
 .btn-secondary:hover {
-  background-color: #f9fafb;
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* Card styles */
+.card {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  transition: all 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  transform: translateY(-2px);
+}
+
+/* Table enhancements */
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+thead {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+tbody tr {
+  transition: all 0.2s ease;
+}
+
+tbody tr:hover {
+  background-color: #f8fafc;
+  transform: scale(1.01);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Print styles */
+@media print {
+  body {
+    background: white;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  input, textarea, select {
+    border: 1px solid #000 !important;
+  }
 }

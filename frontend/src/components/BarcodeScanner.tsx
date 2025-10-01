@@ -41,7 +41,8 @@ export default function BarcodeScanner({ onScanResult, onClose }: BarcodeScanner
         onClose();
       }, 1000);
 
-    } catch (error) {
+    } catch (err) {
+      console.error('Scan error:', err);
       alert('Failed to scan barcode');
       setIsScanning(false);
     }

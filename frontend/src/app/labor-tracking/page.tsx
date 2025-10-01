@@ -7,7 +7,6 @@ import {
   StopIcon,
   ClockIcon,
   DocumentTextIcon,
-  CalendarDaysIcon,
   UserIcon,
   ChartBarIcon
 } from '@heroicons/react/24/outline';
@@ -75,12 +74,12 @@ export default function LaborTracking() {
     const interval = setInterval(() => {
       if (activeEntry) {
         const elapsed = (Date.now() - new Date(activeEntry.start_time).getTime()) / (1000 * 60 * 60);
-        setActiveEntry({ ...activeEntry, elapsed_hours: elapsed });
+        setActiveEntry((prev) => prev ? { ...prev, elapsed_hours: elapsed } : null);
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [activeEntry?.id]);
+  }, [activeEntry?.id, activeEntry]);
 
   const loadActiveEntry = async () => {
     // Mock API call
@@ -153,7 +152,7 @@ export default function LaborTracking() {
       setNewEntry({ traveler_id: '', job_number: '', description: '', search_query: '' });
 
       alert('Labor entry started successfully!');
-    } catch (error) {
+    } catch {
       alert('Failed to start labor entry');
     } finally {
       setIsStarting(false);
@@ -191,7 +190,7 @@ export default function LaborTracking() {
 
       // Refresh summary
       loadLaborSummary();
-    } catch (error) {
+    } catch {
       alert('Failed to stop labor entry');
     } finally {
       setIsStopping(false);

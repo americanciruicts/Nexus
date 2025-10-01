@@ -3,16 +3,14 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
-import { UserCircleIcon, BellIcon, Cog6ToothIcon, QrCodeIcon } from '@heroicons/react/24/outline';
+import { UserCircleIcon, BellIcon, Cog6ToothIcon, QrCodeIcon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
+import { useAuth } from '@/context/AuthContext';
 import BarcodeScanner from '../BarcodeScanner';
 
 export default function Header() {
-  const [currentUser] = useState({
-    name: 'John Doe',
-    role: 'Operator',
-    avatar: null
-  });
+  const { user, logout } = useAuth();
   const [showScanner, setShowScanner] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   const handleScanResult = (result: { traveler_id: string; barcode: string }) => {
     console.log('Scan result:', result);
@@ -21,7 +19,7 @@ export default function Header() {
   };
 
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200">
+    <header className="bg-white shadow-md border-b-2 border-blue-100">
       <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo and Title */}
@@ -78,19 +76,59 @@ export default function Header() {
             </button>
 
             {/* Settings */}
-            <button className="p-2 text-gray-400 hover:text-gray-600">
+            <Link href="/settings" className="p-2 text-gray-400 hover:text-blue-600 transition-colors" title="Settings">
               <Cog6ToothIcon className="h-6 w-6" />
-            </button>
+            </Link>
 
             {/* User Profile */}
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 relative">
               <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">{currentUser.name}</p>
-                <p className="text-xs text-gray-500">{currentUser.role}</p>
+                <p className="text-sm font-medium text-gray-900">{user?.username || 'Guest'}</p>
+                <p className="text-xs text-gray-500">{user?.role || 'No Role'}</p>
               </div>
-              <button className="flex-shrink-0">
+              <button
+                className="flex-shrink-0"
+                onClick={() => setShowUserMenu(!showUserMenu)}
+              >
                 <UserCircleIcon className="h-8 w-8 text-gray-400" />
               </button>
+
+              {/* User Dropdown Menu */}
+              {showUserMenu && (
+                <div className="absolute right-0 top-12 mt-2 w-48 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 z-50">
+                  <div className="py-1">
+                    <div className="px-4 py-2 border-b border-gray-100">
+                      <p className="text-sm font-medium text-gray-900">{user?.username}</p>
+                      <p className="text-xs text-gray-500">{user?.role}</p>
+                      {user?.isApprover && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 mt-1">
+                          Approver
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        // Add settings functionality here
+                      }}
+                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      <Cog6ToothIcon className="h-4 w-4 mr-2" />
+                      Settings
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        logout();
+                      }}
+                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      <ArrowRightOnRectangleIcon className="h-4 w-4 mr-2" />
+                      Sign Out
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

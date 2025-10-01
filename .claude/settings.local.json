@@ -10,7 +10,9 @@
       "Bash(docker-compose:*)",
       "Bash(powershell:*)",
       "Bash(timeout:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "WebFetch(domain:americancircuits0-my.sharepoint.com)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

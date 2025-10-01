@@ -1,138 +1,155 @@
 import Link from 'next/link';
 import Layout from '@/components/layout/Layout';
-import { PlusIcon, DocumentTextIcon, ClockIcon, ChartBarIcon } from '@heroicons/react/24/outline';
+import { DocumentTextIcon, ClockIcon, ChartBarIcon, UserGroupIcon } from '@heroicons/react/24/outline';
 
 export default function Home() {
   return (
     <Layout>
       <div className="space-y-6">
-        {/* Welcome Section */}
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome to NEXUS</h2>
-            <p className="text-gray-600 mb-4">
-              American Circuits Manufacturing Traveler Management System
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Link href="/travelers/new" className="bg-blue-50 hover:bg-blue-100 p-4 rounded-lg border border-blue-200 transition-colors">
-                <div className="flex items-center space-x-3">
-                  <PlusIcon className="h-6 w-6 text-blue-600" />
-                  <div>
-                    <h3 className="font-medium text-blue-900">New Traveler</h3>
-                    <p className="text-sm text-blue-600">Create new manufacturing traveler</p>
-                  </div>
-                </div>
-              </Link>
-
-              <Link href="/travelers" className="bg-green-50 hover:bg-green-100 p-4 rounded-lg border border-green-200 transition-colors">
-                <div className="flex items-center space-x-3">
-                  <DocumentTextIcon className="h-6 w-6 text-green-600" />
-                  <div>
-                    <h3 className="font-medium text-green-900">View Travelers</h3>
-                    <p className="text-sm text-green-600">Manage existing travelers</p>
-                  </div>
-                </div>
-              </Link>
-
-              <Link href="/labor-tracking" className="bg-yellow-50 hover:bg-yellow-100 p-4 rounded-lg border border-yellow-200 transition-colors">
-                <div className="flex items-center space-x-3">
-                  <ClockIcon className="h-6 w-6 text-yellow-600" />
-                  <div>
-                    <h3 className="font-medium text-yellow-900">Labor Tracking</h3>
-                    <p className="text-sm text-yellow-600">Track time and labor hours</p>
-                  </div>
-                </div>
-              </Link>
-
-              <Link href="/reports" className="bg-purple-50 hover:bg-purple-100 p-4 rounded-lg border border-purple-200 transition-colors">
-                <div className="flex items-center space-x-3">
-                  <ChartBarIcon className="h-6 w-6 text-purple-600" />
-                  <div>
-                    <h3 className="font-medium text-purple-900">Reports</h3>
-                    <p className="text-sm text-purple-600">View analytics and reports</p>
-                  </div>
-                </div>
-              </Link>
-            </div>
-          </div>
+        {/* Dashboard Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg rounded-xl p-8 border border-blue-500">
+          <h1 className="text-4xl font-bold text-white mb-2">Dashboard</h1>
+          <p className="text-blue-100 text-lg">Manufacturing Operations Overview</p>
         </div>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <DocumentTextIcon className="h-6 w-6 text-gray-400" />
+        {/* Key Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 overflow-hidden shadow-lg rounded-xl border-2 border-blue-200 transform hover:-translate-y-1 transition-all">
+            <div className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <dt className="text-sm font-bold text-blue-700 uppercase tracking-wide mb-2">Active Travelers</dt>
+                  <dd className="text-4xl font-bold text-blue-900">24</dd>
+                  <p className="text-sm text-blue-600 mt-1">+3 from yesterday</p>
                 </div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Active Travelers</dt>
-                    <dd className="text-lg font-medium text-gray-900">24</dd>
-                  </dl>
+                <div className="flex-shrink-0">
+                  <DocumentTextIcon className="h-14 w-14 text-blue-600 opacity-80" />
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <ClockIcon className="h-6 w-6 text-gray-400" />
+          <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 overflow-hidden shadow-lg rounded-xl border-2 border-yellow-200 transform hover:-translate-y-1 transition-all">
+            <div className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <dt className="text-sm font-bold text-yellow-700 uppercase tracking-wide mb-2">Hours This Week</dt>
+                  <dd className="text-4xl font-bold text-yellow-900">156.5</dd>
+                  <p className="text-sm text-yellow-600 mt-1">Across all shifts</p>
                 </div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Hours This Week</dt>
-                    <dd className="text-lg font-medium text-gray-900">156.5</dd>
-                  </dl>
+                <div className="flex-shrink-0">
+                  <ClockIcon className="h-14 w-14 text-yellow-600 opacity-80" />
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <ChartBarIcon className="h-6 w-6 text-gray-400" />
+          <div className="bg-gradient-to-br from-green-50 to-green-100 overflow-hidden shadow-lg rounded-xl border-2 border-green-200 transform hover:-translate-y-1 transition-all">
+            <div className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <dt className="text-sm font-bold text-green-700 uppercase tracking-wide mb-2">Completed Today</dt>
+                  <dd className="text-4xl font-bold text-green-900">8</dd>
+                  <p className="text-sm text-green-600 mt-1">On schedule</p>
                 </div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Completed Today</dt>
-                    <dd className="text-lg font-medium text-gray-900">8</dd>
-                  </dl>
+                <div className="flex-shrink-0">
+                  <ChartBarIcon className="h-14 w-14 text-green-600 opacity-80" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-purple-50 to-purple-100 overflow-hidden shadow-lg rounded-xl border-2 border-purple-200 transform hover:-translate-y-1 transition-all">
+            <div className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <dt className="text-sm font-bold text-purple-700 uppercase tracking-wide mb-2">Active Workers</dt>
+                  <dd className="text-4xl font-bold text-purple-900">12</dd>
+                  <p className="text-sm text-purple-600 mt-1">Currently clocked in</p>
+                </div>
+                <div className="flex-shrink-0">
+                  <UserGroupIcon className="h-14 w-14 text-purple-600 opacity-80" />
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Recent Activity */}
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">Recent Activity</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between py-3 border-b border-gray-200">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Traveler #8414L created</p>
-                  <p className="text-sm text-gray-500">PCB Assembly - METSHIFT Rev: V0.2</p>
-                </div>
-                <span className="text-sm text-gray-500">2 hours ago</span>
+        {/* Quick Actions */}
+        <div className="bg-white shadow-lg rounded-xl p-6 border border-gray-200">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Quick Actions</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Link href="/travelers/new" className="bg-gradient-to-br from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 p-6 rounded-xl border-2 border-blue-200 transition-all transform hover:-translate-y-1 hover:shadow-xl">
+              <div className="text-center">
+                <DocumentTextIcon className="h-12 w-12 text-blue-600 mx-auto mb-3" />
+                <h3 className="font-bold text-blue-900 text-lg mb-2">Create New Traveler</h3>
+                <p className="text-sm text-blue-700">Start a new manufacturing process</p>
               </div>
-              <div className="flex items-center justify-between py-3 border-b border-gray-200">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Labor entry completed</p>
-                  <p className="text-sm text-gray-500">Cable Assembly - 2.5 hours logged</p>
-                </div>
-                <span className="text-sm text-gray-500">4 hours ago</span>
+            </Link>
+
+            <Link href="/labor-tracking" className="bg-gradient-to-br from-yellow-50 to-yellow-100 hover:from-yellow-100 hover:to-yellow-200 p-6 rounded-xl border-2 border-yellow-200 transition-all transform hover:-translate-y-1 hover:shadow-xl">
+              <div className="text-center">
+                <ClockIcon className="h-12 w-12 text-yellow-600 mx-auto mb-3" />
+                <h3 className="font-bold text-yellow-900 text-lg mb-2">Clock In/Out</h3>
+                <p className="text-sm text-yellow-700">Track labor time</p>
               </div>
-              <div className="flex items-center justify-between py-3">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Approval requested</p>
-                  <p className="text-sm text-gray-500">Traveler modification requires approval</p>
+            </Link>
+
+            <Link href="/reports" className="bg-gradient-to-br from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 p-6 rounded-xl border-2 border-purple-200 transition-all transform hover:-translate-y-1 hover:shadow-xl">
+              <div className="text-center">
+                <ChartBarIcon className="h-12 w-12 text-purple-600 mx-auto mb-3" />
+                <h3 className="font-bold text-purple-900 text-lg mb-2">View Reports</h3>
+                <p className="text-sm text-purple-700">Analytics and insights</p>
+              </div>
+            </Link>
+          </div>
+        </div>
+
+        {/* Recent Travelers */}
+        <div className="bg-white shadow-lg rounded-xl border border-gray-200">
+          <div className="px-6 py-6">
+            <h3 className="text-2xl font-bold text-gray-900 mb-6">Recent Travelers</h3>
+            <div className="space-y-4">
+              <div className="border-2 border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:bg-blue-50 transition-all">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h4 className="font-bold text-gray-900 text-lg">Traveler #8414L</h4>
+                    <p className="text-sm text-gray-600 font-semibold">METSHIFT Assembly - Rev V0.2</p>
+                    <p className="text-sm text-gray-500">Status: In Progress - WAVE SOLDER</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-base font-bold text-green-600">75% Complete</div>
+                    <div className="text-sm text-gray-500">Est. completion: 2 hours</div>
+                  </div>
                 </div>
-                <span className="text-sm text-gray-500">6 hours ago</span>
+              </div>
+
+              <div className="border-2 border-gray-200 rounded-lg p-4 hover:border-yellow-300 hover:bg-yellow-50 transition-all">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h4 className="font-bold text-gray-900 text-lg">Traveler #7523C</h4>
+                    <p className="text-sm text-gray-600 font-semibold">Cable Assembly - Rev A1.0</p>
+                    <p className="text-sm text-gray-500">Status: Quality Check</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-base font-bold text-yellow-600">90% Complete</div>
+                    <div className="text-sm text-gray-500">Est. completion: 30 minutes</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-2 border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:bg-blue-50 transition-all">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h4 className="font-bold text-gray-900 text-lg">Traveler #9841P</h4>
+                    <p className="text-sm text-gray-600 font-semibold">PCB Assembly - Rev B2.1</p>
+                    <p className="text-sm text-gray-500">Status: Started - ENGINEERING</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-base font-bold text-blue-600">15% Complete</div>
+                    <div className="text-sm text-gray-500">Est. completion: 6 hours</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
