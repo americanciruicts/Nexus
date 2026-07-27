@@ -3697,6 +3697,14 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
             const rmaLabel = displayTraveler.travelerType === 'MODIFICATION'
               ? (displayTraveler.woTypeLabel || 'Modification')
               : 'RMA';
+            // Short prefix for the top-left "<rma> ___ JOB NO <job>" line. Display
+            // only — the labor-tracking/travelers-list label keeps "RMA JOB NO" as
+            // its parser marker, so this must not feed those code paths.
+            const jobNoPrefix = displayTraveler.travelerType === 'MODIFICATION' ? 'MOD' : 'RMA';
+            // "MODIFICATION"/"REWORK" are far wider than "RMA"; shrink the center
+            // routing title for long labels so it can't overflow its cell and crash
+            // into the To Stock / From Stock / Ship VIA column on the right.
+            const isLongRoutingLabel = rmaLabel.length > 4;
             return (
           <div className="border-b-2 border-black dark:border-slate-600 print:break-inside-avoid">
             {/* Top banner: RMA Job No. + Barcode | RMA ROUTING | To Stock / From Stock / Ship VIA */}
@@ -3711,12 +3719,12 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
                           {isEditing ? (
                             <div className="flex items-center gap-1.5 whitespace-nowrap">
                               <input type="text" value={editData.rmaNumber || ''} onChange={(e) => updateField('rmaNumber', e.target.value)} className="w-20 border-2 border-gray-400 dark:border-slate-500 rounded px-2 py-1 text-base font-black text-black dark:text-white" placeholder="RMA #" />
-                              <span className="text-sm font-black text-black dark:text-white">RMA JOB NO</span>
+                              <span className="text-sm font-black text-black dark:text-white">{jobNoPrefix} JOB NO</span>
                               <input type="text" value={editData.jobNumber} onChange={(e) => updateField('jobNumber', e.target.value)} className="w-28 border-2 border-gray-400 dark:border-slate-500 rounded px-2 py-1 text-base font-black text-black dark:text-white" placeholder="Job #" />
                             </div>
                           ) : (
-                            <div className="text-lg font-black text-black dark:text-white print:text-[22px] whitespace-nowrap" style={{fontWeight: '900', letterSpacing: '0.5px'}}>
-                              {`${displayTraveler.rmaNumber || ''} RMA JOB NO ${displayTraveler.jobNumber || ''}`.trim()}
+                            <div className="text-base font-black text-black dark:text-white print:text-[18px] break-words leading-tight" style={{fontWeight: '900', letterSpacing: '0.5px'}}>
+                              {`${displayTraveler.rmaNumber || ''} ${jobNoPrefix} JOB NO ${displayTraveler.jobNumber || ''}`.trim()}
                             </div>
                           )}
                         </div>
@@ -3739,12 +3747,12 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
                       </div>
                     </td>
                     {/* Center: RMA ROUTING title */}
-                    <td className="border-r-2 border-black dark:border-slate-600 px-4 py-3 print:px-4 print:py-3 text-center align-middle" style={{width: '25%'}}>
-                      <div className="text-2xl font-black text-black dark:text-white print:text-[30px] tracking-wider" style={{fontWeight: '900'}}>{rmaLabel.toUpperCase()}</div>
+                    <td className="border-r-2 border-black dark:border-slate-600 px-4 py-3 print:px-4 print:py-3 text-center align-middle overflow-hidden" style={{width: '30%'}}>
+                      <div className={`font-black text-black dark:text-white leading-tight ${isLongRoutingLabel ? 'text-lg print:text-[18px] tracking-tight' : 'text-2xl print:text-[26px] tracking-wider'}`} style={{fontWeight: '900'}}>{rmaLabel.toUpperCase()}</div>
                       <div className="text-lg font-bold text-black dark:text-white print:text-[18px] tracking-widest">ROUTING</div>
                     </td>
                     {/* Right: To Stock / From Stock / Ship VIA */}
-                    <td className="px-4 py-3 print:px-4 print:py-3 align-middle text-sm print:text-[13px]" style={{width: '35%'}}>
+                    <td className="px-4 py-3 print:px-4 print:py-3 align-middle text-sm print:text-[13px]" style={{width: '30%'}}>
                       <div className="space-y-1.5 print:space-y-0.5">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-black dark:text-white min-w-[85px] print:min-w-[65px]">To Stock:</span>
