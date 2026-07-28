@@ -1066,6 +1066,7 @@ def _find_travelers_for_lookup(db: Session, raw: str):
         or_(
             func.upper(Traveler.job_number).in_(upper),
             func.upper(Traveler.work_order_number).in_(upper),
+            func.upper(Traveler.po_number).in_(upper),
         )
     ).all()
 
@@ -1074,11 +1075,14 @@ def _find_travelers_for_lookup(db: Session, raw: str):
     def rank(t):
         job = (t.job_number or '').upper()
         wo = (t.work_order_number or '').upper()
-        if job == typed or wo == typed:
+        po = (t.po_number or '').upper()
+        if job == typed or wo == typed or (po and po == typed):
             return 0          # exactly what the user typed
         if wo in upper:
             return 1          # RMA/MOD number pulled out of a composite string
-        return 2              # the job half of a composite string
+        if job in upper:
+            return 2          # the job half of a composite string
+        return 3              # PO number
 
     # Latest revision first within a rank (preserves the previous
     # "latest revision wins" behaviour for plain job-number lookups).

@@ -145,6 +145,18 @@ const RMA_COL_MIN_WIDTH = 70;
 const RMA_COL_MAX_WIDTH = 360;
 const RMA_COL_WIDTH_STEP = 20;
 
+// Card wording for each traveler type, reused wherever a type is shown to the
+// user (create cards, job-lookup picker) so an RMA always reads the same way.
+const TRAVELER_TYPE_LINES: Record<string, { name: string; line: string }> = {
+  PCB_ASSEMBLY: { name: 'PCB Assembly', line: 'Full board assembly with components' },
+  PCB: { name: 'PCB', line: 'Bare circuit board fabrication' },
+  CABLE: { name: 'Cable Assembly', line: 'Cable and wire harness assembly' },
+  PURCHASING: { name: 'Purchasing', line: 'Parts and components procurement' },
+  RMA_SAME: { name: 'RMA Router Same Job', line: 'RMA from same job or revision' },
+  RMA_DIFF: { name: 'RMA Router Diff Job', line: 'RMA from different jobs or revisions' },
+  MODIFICATION: { name: 'Modification and Rework', line: 'Board modification and rework' },
+};
+
 // Shape returned by /travelers/by-job-number/... — a traveler to auto-fill from
 interface LookupTraveler {
   id?: number;
@@ -2113,7 +2125,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
             </label>
             <input
               type="text"
-              placeholder="Job, RMA or MOD number (e.g. 8744 PARTS, 1108, 1108 RMA JOB 8500L) and press Enter"
+              placeholder="Job, RMA / MOD, work order or PO number (e.g. 8744 PARTS, 1108, 1108 RMA JOB 8500L) and press Enter"
               className="w-full border-2 border-gray-300 dark:border-slate-600 rounded-lg px-4 py-3 text-sm font-bold focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -2125,7 +2137,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
                 if (val.length >= 2) autoFillFromExistingJob(val);
               }}
             />
-            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1.5">Press Enter or tab out to search. Works with job numbers and with RMA / Modification numbers. Auto-fills all details, steps, and selects the correct type.</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1.5">Press Enter or tab out to search. Works with a job number, an RMA / Modification number, a work order, or a PO. Auto-fills all details, steps, and selects the correct type.</p>
           </div>
 
           {/* Work Order Selector — shown when a job has more than one traveler
@@ -2144,26 +2156,33 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
                 </button>
               </div>
               <div className="space-y-2 max-h-72 overflow-y-auto">
-                {existingWorkOrders.map((wo) => (
-                  <button
-                    key={wo.id ?? `${wo.job_number}-${wo.work_order_number}`}
-                    onClick={() => applyAutoFill(wo)}
-                    className="w-full text-left p-3 rounded-lg border-2 border-gray-200 dark:border-slate-600 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-slate-700 transition-all"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <span className="font-bold text-sm text-gray-800 dark:text-slate-200">Job: {wo.job_number}</span>
-                        <span className="ml-2 text-xs font-bold text-indigo-600 dark:text-indigo-400">WO: {wo.work_order_number || '—'}</span>
-                        <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">| {wo.traveler_type}</span>
-                        <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">| BOM Rev: {wo.revision}</span>
+                {existingWorkOrders.map((wo) => {
+                  const typeInfo = TRAVELER_TYPE_LINES[wo.traveler_type || ''];
+                  return (
+                    <button
+                      key={wo.id ?? `${wo.job_number}-${wo.work_order_number}`}
+                      onClick={() => applyAutoFill(wo)}
+                      className="w-full text-left p-3 rounded-lg border-2 border-gray-200 dark:border-slate-600 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-slate-700 transition-all"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <span className="font-bold text-sm text-gray-800 dark:text-slate-200">{typeInfo?.name || wo.traveler_type}</span>
+                          <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">{typeInfo?.line || ''}</span>
+                        </div>
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 whitespace-nowrap">{wo.status}</span>
                       </div>
-                      <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 whitespace-nowrap">{wo.status}</span>
-                    </div>
-                    <div className="mt-1 text-xs text-gray-600 dark:text-slate-400">
-                      {wo.part_number} - {wo.part_description} | Qty: {wo.quantity}
-                    </div>
-                  </button>
-                ))}
+                      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
+                        <span className="font-bold text-gray-800 dark:text-slate-200">Job: {wo.job_number}</span>
+                        <span className="font-bold text-indigo-600 dark:text-indigo-400">WO: {wo.work_order_number || '—'}</span>
+                        <span className="font-bold text-indigo-600 dark:text-indigo-400">PO: {wo.po_number || '—'}</span>
+                        <span className="text-gray-500 dark:text-slate-400">BOM Rev: {wo.revision || '—'}</span>
+                      </div>
+                      <div className="mt-1 text-xs text-gray-600 dark:text-slate-400">
+                        {wo.part_number} - {wo.part_description} | Qty: {wo.quantity}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
