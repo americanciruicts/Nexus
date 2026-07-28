@@ -4724,8 +4724,11 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
           {/* RMA Page 2: Comments + Unit Tracking */}
           {isRmaType(displayTraveler.travelerType) && (
           <div className="rma-page2-content">
-            {/* Comments & Notes for RMA - on page 2 */}
-            <div className="border-b-2 border-black dark:border-slate-600">
+            {/* Comments & Notes for RMA - on page 2. Same rule as the non-RMA
+                block above: with no comments the tall (480px print) box is
+                dropped from print, so page 2 starts at the unit tracking table
+                instead of a half page of empty purple. Screen view unchanged. */}
+            <div className={`border-b-2 border-black dark:border-slate-600 ${((isEditing ? editData.comments : displayTraveler.comments) || '').trim() ? '' : 'print:hidden'}`}>
               <div className="bg-purple-200 dark:bg-purple-900/50 print:!bg-purple-200 px-3 py-2 print:px-1 print:py-0">
                 <h2 className="font-bold text-sm text-purple-900 dark:text-purple-200 print:!text-black print:text-[9px]">COMMENTS & NOTES</h2>
               </div>
