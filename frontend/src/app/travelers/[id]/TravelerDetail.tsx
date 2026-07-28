@@ -145,6 +145,35 @@ const RMA_COL_MIN_WIDTH = 70;
 const RMA_COL_MAX_WIDTH = 360;
 const RMA_COL_WIDTH_STEP = 20;
 
+// Shape returned by /travelers/by-job-number/... — a traveler to auto-fill from
+interface LookupTraveler {
+  id?: number;
+  job_number: string;
+  work_order_number?: string;
+  po_number?: string;
+  traveler_type?: string;
+  part_number?: string;
+  part_description?: string;
+  revision?: string;
+  customer_revision?: string;
+  part_revision?: string;
+  quantity?: number;
+  customer_code?: string;
+  customer_name?: string;
+  priority?: string;
+  status?: string;
+  work_center?: string;
+  specs?: unknown;
+  from_stock?: string;
+  to_stock?: string;
+  ship_via?: string;
+  comments?: string;
+  due_date?: string;
+  ship_date?: string;
+  include_labor_hours?: boolean;
+  process_steps?: Record<string, unknown>[];
+}
+
 interface Traveler {
   id: string;
   travelerId: number;
@@ -273,6 +302,10 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
   const [isLeadFree, setIsLeadFree] = useState(false);
   const [isITAR, setIsITAR] = useState(false);
   const [includeLaborHours, setIncludeLaborHours] = useState(true);
+  // Job lookup can resolve to several travelers (e.g. a PCBA build and an RMA
+  // on the same job) — let the user pick which one to duplicate from.
+  const [existingWorkOrders, setExistingWorkOrders] = useState<LookupTraveler[]>([]);
+  const [showWorkOrderSelector, setShowWorkOrderSelector] = useState(false);
 
   const [traveler, setTraveler] = useState<Traveler | null>(null);
   const [loadError, setLoadError] = useState<'auth' | 'notfound' | null>(null);
@@ -1883,24 +1916,47 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
   };
 
   // ---- Create Mode: Type Selection Screen ----
-  // Auto-fill from existing traveler by job number
+  // Look up a job / RMA number and auto-fill. The lookup resolves job numbers,
+  // RMA & MOD work order numbers, and composite strings ("1108 RMA JOB 8500L"),
+  // so RMA and Modification travelers can be duplicated the same as any other.
   const autoFillFromExistingJob = async (jobNumber: string) => {
     if (!jobNumber || jobNumber.length < 2) return;
     try {
       const token = localStorage.getItem('nexus_token');
       if (!token) return;
-      const response = await fetch(`${API_BASE_URL}/travelers/by-job-number/${encodeURIComponent(jobNumber)}`, {
+      const response = await fetch(`${API_BASE_URL}/travelers/by-job-number/${encodeURIComponent(jobNumber)}/all-work-orders`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) {
         toast.warning('No existing traveler found with that job number. Please select a type to create a new one.');
         return;
       }
-      const data = await response.json();
-      if (!data || !data.job_number) {
+      const matches: LookupTraveler[] = await response.json();
+      if (!Array.isArray(matches) || matches.length === 0) {
         toast.warning('No existing traveler found with that job number. Please select a type to create a new one.');
         return;
       }
+      if (matches.length > 1) {
+        // e.g. job 8500L has both a PCB Assembly build and RMA 1108 — the user
+        // picks which one to duplicate instead of us guessing.
+        setExistingWorkOrders(matches);
+        setShowWorkOrderSelector(true);
+        toast.info(`Found ${matches.length} travelers for "${jobNumber}". Select which one to auto-fill from.`);
+        return;
+      }
+      await applyAutoFill(matches[0]);
+    } catch (error) {
+      console.error('Error looking up job number:', error);
+      toast.error('Error looking up job number.');
+    }
+  };
+
+  // Copy every field of an existing traveler into the create form
+  const applyAutoFill = async (data: LookupTraveler) => {
+    try {
+      const token = localStorage.getItem('nexus_token');
+      setShowWorkOrderSelector(false);
+      setExistingWorkOrders([]);
 
       // BOM Rev is manually set — carry the source revision through as-is
       // and require the user to change it (or another unique field) before
@@ -2032,8 +2088,8 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
         }
       } catch { /* non-critical */ }
     } catch (error) {
-      console.error('Error looking up job number:', error);
-      toast.error('Error looking up job number.');
+      console.error('Error auto-filling from traveler:', error);
+      toast.error('Error auto-filling from that traveler.');
     }
   };
 
@@ -2057,7 +2113,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
             </label>
             <input
               type="text"
-              placeholder="Enter job number (e.g. test1, 8744 PARTS) and press Enter"
+              placeholder="Job, RMA or MOD number (e.g. 8744 PARTS, 1108, 1108 RMA JOB 8500L) and press Enter"
               className="w-full border-2 border-gray-300 dark:border-slate-600 rounded-lg px-4 py-3 text-sm font-bold focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -2069,8 +2125,48 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
                 if (val.length >= 2) autoFillFromExistingJob(val);
               }}
             />
-            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1.5">Press Enter or tab out to search. Auto-fills all details, steps, and selects the correct type.</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1.5">Press Enter or tab out to search. Works with job numbers and with RMA / Modification numbers. Auto-fills all details, steps, and selects the correct type.</p>
           </div>
+
+          {/* Work Order Selector — shown when a job has more than one traveler
+              (e.g. the original build plus an RMA or Modification) */}
+          {showWorkOrderSelector && existingWorkOrders.length > 0 && (
+            <div className="max-w-3xl w-full mb-6 bg-white dark:bg-slate-800 rounded-xl border-2 border-amber-300 dark:border-amber-600 p-5 shadow-lg">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold text-gray-800 dark:text-slate-200">
+                  Select the traveler to auto-fill from
+                </h3>
+                <button
+                  onClick={() => { setShowWorkOrderSelector(false); setExistingWorkOrders([]); }}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 text-lg font-bold"
+                >
+                  &times;
+                </button>
+              </div>
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {existingWorkOrders.map((wo) => (
+                  <button
+                    key={wo.id ?? `${wo.job_number}-${wo.work_order_number}`}
+                    onClick={() => applyAutoFill(wo)}
+                    className="w-full text-left p-3 rounded-lg border-2 border-gray-200 dark:border-slate-600 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-slate-700 transition-all"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <span className="font-bold text-sm text-gray-800 dark:text-slate-200">Job: {wo.job_number}</span>
+                        <span className="ml-2 text-xs font-bold text-indigo-600 dark:text-indigo-400">WO: {wo.work_order_number || '—'}</span>
+                        <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">| {wo.traveler_type}</span>
+                        <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">| BOM Rev: {wo.revision}</span>
+                      </div>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 whitespace-nowrap">{wo.status}</span>
+                    </div>
+                    <div className="mt-1 text-xs text-gray-600 dark:text-slate-400">
+                      {wo.part_number} - {wo.part_description} | Qty: {wo.quantity}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5 max-w-5xl w-full px-2 sm:px-0">
@@ -3542,13 +3638,13 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
                       <span className="text-xl font-bold print:text-[10px]">Job: {displayTraveler.jobNumber}</span>
                     )}
                   </div>
-                  <div className="border-2 border-black dark:border-slate-600 p-2 bg-white inline-block rounded print:p-0.5 print:border">
+                  <div className="border-2 border-black dark:border-slate-600 bg-white inline-block rounded" style={{ padding: '2px 4px' }}>
                     {headerBarcode ? (
                       <img
                         src={`data:image/png;base64,${headerBarcode}`}
                         alt={`Barcode for ${displayTraveler.jobNumber}`}
-                        className="mx-auto w-44 h-14 print:w-[100px] print:h-[30px]"
-                        style={{ objectFit: 'contain' }}
+                        className="h-14"
+                        style={{ width: 'auto', maxWidth: '100%', imageRendering: 'pixelated' }}
                         data-print-img="header-barcode" onLoad={handleHeaderBarcodeLoad}
                         onError={() => {
                           console.error('Failed to load header barcode');

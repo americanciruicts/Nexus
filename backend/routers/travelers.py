@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+from sqlalchemy import or_, func
 from pydantic import BaseModel
 from typing import List, Optional
 import json
@@ -1009,6 +1010,86 @@ async def get_traveler_group(
 
     return {"id": group.id, "name": group.name, "total_count": len(members), "members": members}
 
+def _lookup_candidates(raw: str) -> list:
+    """Break a user-typed job lookup into the values worth matching on.
+
+    RMA and MODIFICATION travelers carry the RMA number in work_order_number
+    and the original job in job_number, and people write them together in
+    every shape: "1108", "8500L", "1108 RMA JOB 8500L", "1108 RMA JOB NO 8500L",
+    "1108 MOD JOB 8500L". Any of those should find the same traveler.
+    """
+    text = re.sub(r'\s+', ' ', (raw or '')).strip()
+    if not text:
+        return []
+
+    candidates = [text]
+    # Split on the connector words people put between the RMA/MOD number and
+    # the job, e.g. "1108 RMA JOB NO 8500L" -> ["1108", "8500L"].
+    parts = re.split(
+        r'\s*(?:RMA|MOD(?:IFICATION)?)?\s*JOB(?:\s*(?:NO|NUMBER|#))?\s*|\s+(?:RMA|MOD(?:IFICATION)?)\s+',
+        text,
+        flags=re.IGNORECASE,
+    )
+    for part in parts:
+        part = part.strip()
+        if part and part.upper() not in {'RMA', 'MOD', 'MODIFICATION', 'JOB', 'NO'}:
+            candidates.append(part)
+
+    # De-dupe, preserve order
+    seen = set()
+    result = []
+    for c in candidates:
+        key = c.upper()
+        if key not in seen:
+            seen.add(key)
+            result.append(c)
+    return result
+
+
+def _find_travelers_for_lookup(db: Session, raw: str):
+    """Travelers matching a job lookup, best match first.
+
+    Matches job_number OR work_order_number (case-insensitive) so RMA/MOD
+    travelers — whose RMA number lives in work_order_number — are findable.
+    Exact job-number hits rank ahead of work-order hits.
+    """
+    from sqlalchemy.orm import joinedload
+
+    candidates = _lookup_candidates(raw)
+    if not candidates:
+        return []
+
+    upper = [c.upper() for c in candidates]
+    travelers = db.query(Traveler).options(
+        joinedload(Traveler.process_steps)
+    ).filter(
+        or_(
+            func.upper(Traveler.job_number).in_(upper),
+            func.upper(Traveler.work_order_number).in_(upper),
+        )
+    ).all()
+
+    typed = (raw or '').strip().upper()
+
+    def rank(t):
+        job = (t.job_number or '').upper()
+        wo = (t.work_order_number or '').upper()
+        if job == typed or wo == typed:
+            return 0          # exactly what the user typed
+        if wo in upper:
+            return 1          # RMA/MOD number pulled out of a composite string
+        return 2              # the job half of a composite string
+
+    # Latest revision first within a rank (preserves the previous
+    # "latest revision wins" behaviour for plain job-number lookups).
+    by_revision = sorted(
+        travelers,
+        key=lambda t: ((t.revision or ''), (t.work_order_number or '')),
+        reverse=True,
+    )
+    return sorted(by_revision, key=rank)
+
+
 @router.get("/by-job-number/{job_number}/all-work-orders")
 async def get_all_work_orders_for_job(
     job_number: str,
@@ -1016,9 +1097,8 @@ async def get_all_work_orders_for_job(
     db: Session = Depends(get_db)
 ):
     """Get all travelers (work orders) for a given job number.
-    Returns a list of work orders with their details so the user can select one."""
-    from sqlalchemy.orm import joinedload
-
+    Returns a list of work orders with their details so the user can select one.
+    Also resolves RMA/MOD numbers and composite strings like "1108 RMA JOB 8500L"."""
     # ITAR access check
     is_admin = current_user.role.value == 'ADMIN' if hasattr(current_user.role, 'value') else current_user.role == 'ADMIN'
     has_itar_access = getattr(current_user, 'is_itar', False)
@@ -1026,11 +1106,7 @@ async def get_all_work_orders_for_job(
     if is_itar_job and not is_admin and not has_itar_access:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ITAR restricted: You do not have permission to view this traveler")
 
-    travelers = db.query(Traveler).options(
-        joinedload(Traveler.process_steps)
-    ).filter(
-        Traveler.job_number == job_number
-    ).order_by(Traveler.work_order_number.asc()).all()
+    travelers = _find_travelers_for_lookup(db, job_number)
 
     if not travelers:
         return []
@@ -1098,9 +1174,8 @@ async def get_traveler_by_job_number(
     current_user: User = Depends(get_user_or_system),
     db: Session = Depends(get_db)
 ):
-    """Get the latest revision traveler for a given job number (no work order required)"""
-    from sqlalchemy.orm import joinedload
-
+    """Get the best-matching traveler for a job lookup (no work order required).
+    Accepts a job number, an RMA/MOD work order number, or a composite string."""
     # ITAR access check
     is_admin = current_user.role.value == 'ADMIN' if hasattr(current_user.role, 'value') else current_user.role == 'ADMIN'
     has_itar_access = getattr(current_user, 'is_itar', False)
@@ -1108,11 +1183,7 @@ async def get_traveler_by_job_number(
     if is_itar_job and not is_admin and not has_itar_access:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="ITAR restricted: You do not have permission to view this traveler")
 
-    travelers = db.query(Traveler).options(
-        joinedload(Traveler.process_steps)
-    ).filter(
-        Traveler.job_number == job_number
-    ).order_by(Traveler.revision.desc()).all()
+    travelers = _find_travelers_for_lookup(db, job_number)
 
     if not travelers:
         return None
