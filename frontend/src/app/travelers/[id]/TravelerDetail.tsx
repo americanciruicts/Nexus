@@ -638,7 +638,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
                       return u.custom_values ? JSON.parse(u.custom_values as string) as Record<string, string> : {};
                     } catch { return {}; }
                   })(),
-                })))
+                })).sort((a, b) => (Number(a.unit_number) || 0) - (Number(b.unit_number) || 0)))
               : Array.from({ length: 5 }, (_, i) => ({
                   unit_number: i + 1, serial_number: '', customer_complaint: '',
                   incoming_inspection_notes: '', disposition: '',
@@ -1264,7 +1264,9 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
     if (!editedTraveler) return;
     const units = editedTraveler.rmaUnits || [];
     const newUnit: RmaUnit = {
-      unit_number: units.length + 1,
+      // max + 1, not length + 1 — blank rows are dropped on save, so the count
+      // and the highest No. drift apart and length+1 would duplicate a number.
+      unit_number: units.reduce((max, u) => Math.max(max, Number(u.unit_number) || 0), 0) + 1,
       serial_number: '',
       customer_complaint: '',
       incoming_inspection_notes: '',

@@ -225,7 +225,15 @@ class Traveler(Base):
     labor_entries = relationship("LaborEntry", back_populates="traveler")
     approvals = relationship("Approval", back_populates="traveler")
     audit_logs = relationship("AuditLog", back_populates="traveler")
-    rma_units = relationship("RmaUnitTracking", back_populates="traveler", cascade="all, delete-orphan")
+    # Units are rewritten in bulk on every save, so their physical row order
+    # drifts from the No. column (a traveler edited in two passes came back
+    # 17-23, then 1-16, then 24-29). Always hand them back in unit order.
+    rma_units = relationship(
+        "RmaUnitTracking",
+        back_populates="traveler",
+        cascade="all, delete-orphan",
+        order_by="(RmaUnitTracking.unit_number, RmaUnitTracking.id)",
+    )
 
 class ProcessStep(Base):
     __tablename__ = "process_steps"
