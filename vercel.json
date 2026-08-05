@@ -10,19 +10,19 @@
     },
     {
       "source": "/formsm/:path*",
-      "destination": "https://aci.lmhosted.com/formsm/:path*"
+      "destination": "https://aci.rithomiq.com/formsm/:path*"
     },
     {
       "source": "/formio/:path*",
-      "destination": "https://aci.lmhosted.com/formio/:path*"
+      "destination": "https://aci.rithomiq.com/formio/:path*"
     },
     {
       "source": "/web/:path*",
-      "destination": "https://aci.lmhosted.com/web/:path*"
+      "destination": "https://aci.rithomiq.com/web/:path*"
     },
     {
       "source": "/longpolling/:path*",
-      "destination": "https://aci.lmhosted.com/longpolling/:path*"
+      "destination": "https://aci.rithomiq.com/longpolling/:path*"
     }
   ]
 }

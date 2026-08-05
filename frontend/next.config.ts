@@ -14,19 +14,19 @@ const nextConfig: NextConfig = {
   },
   // Reduce powered-by header
   poweredByHeader: false,
-  // Reverse-proxy the lmhosted Odoo formio service so the embedded maintenance
+  // Reverse-proxy the rithomiq Odoo formio service so the embedded maintenance
   // form is served same-origin. Cross-origin loads get blocked by the form's
   // session cookies, causing silent submission failures.
   async rewrites() {
     return [
-      { source: '/formsm/:path*', destination: 'https://aci.lmhosted.com/formsm/:path*' },
-      { source: '/formio/:path*', destination: 'https://aci.lmhosted.com/formio/:path*' },
-      { source: '/web/:path*', destination: 'https://aci.lmhosted.com/web/:path*' },
-      { source: '/longpolling/:path*', destination: 'https://aci.lmhosted.com/longpolling/:path*' },
+      { source: '/formsm/:path*', destination: 'https://aci.rithomiq.com/formsm/:path*' },
+      { source: '/formio/:path*', destination: 'https://aci.rithomiq.com/formio/:path*' },
+      { source: '/web/:path*', destination: 'https://aci.rithomiq.com/web/:path*' },
+      { source: '/longpolling/:path*', destination: 'https://aci.rithomiq.com/longpolling/:path*' },
     ];
   },
   // SAMEORIGIN (not DENY) so the maintenance page can embed the reverse-proxied
-  // lmhosted form iframe as same-origin. External sites still can't frame us.
+  // rithomiq form iframe as same-origin. External sites still can't frame us.
   async headers() {
     return [
       {
