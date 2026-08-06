@@ -2239,17 +2239,68 @@ async def delete_traveler(
         db.commit()
         db.refresh(default_user)
 
-    # Delete related records first (cascade delete)
-    # Import additional models for deletion
-    from models import LaborEntry, Approval, StepScanEvent
+    # Delete related records first. ORDER MATTERS: several child FKs are
+    # ON DELETE NO ACTION, so anything pointing at process_steps.id
+    # (labor_entries.step_id, sub_steps.process_step_id,
+    # kitting_timer_sessions.step_id) has to go BEFORE the process steps
+    # themselves. Deleting process_steps first raised an IntegrityError that the
+    # global handler turned into a 409 — which made every traveler with logged
+    # labor undeletable (181 of 199 at the time this was fixed).
+    from models import (
+        LaborEntry, Approval, StepScanEvent, KittingTimerSession,
+        KittingEventLog, JobDocument, CommunicationLog, QualityCheckItem,
+    )
 
-    db.query(ProcessStep).filter(ProcessStep.traveler_id == traveler.id).delete()
-    db.query(ManualStep).filter(ManualStep.traveler_id == traveler.id).delete()
-    db.query(AuditLog).filter(AuditLog.traveler_id == traveler.id).delete()
-    db.query(TravelerTrackingLog).filter(TravelerTrackingLog.traveler_id == traveler.id).delete()
-    db.query(LaborEntry).filter(LaborEntry.traveler_id == traveler.id).delete()
-    db.query(Approval).filter(Approval.traveler_id == traveler.id).delete()
-    db.query(StepScanEvent).filter(StepScanEvent.traveler_id == traveler.id).delete()
+    step_ids = [
+        row[0] for row in
+        db.query(ProcessStep.id).filter(ProcessStep.traveler_id == traveler.id).all()
+    ]
+
+    # 1. Grandchildren of process_steps (must precede the steps).
+    if step_ids:
+        db.query(SubStep).filter(SubStep.process_step_id.in_(step_ids)).delete(synchronize_session=False)
+        db.query(QualityCheckItem).filter(QualityCheckItem.step_id.in_(step_ids)).delete(synchronize_session=False)
+
+    # 2. Direct children that also reference a step. kitting_event_logs first —
+    #    its session_id FK is SET NULL, but deleting the logs outright is what we
+    #    want. pause_logs cascade off labor_entries automatically.
+    db.query(KittingEventLog).filter(KittingEventLog.traveler_id == traveler.id).delete(synchronize_session=False)
+    db.query(KittingTimerSession).filter(KittingTimerSession.traveler_id == traveler.id).delete(synchronize_session=False)
+    db.query(LaborEntry).filter(LaborEntry.traveler_id == traveler.id).delete(synchronize_session=False)
+    db.query(StepScanEvent).filter(StepScanEvent.traveler_id == traveler.id).delete(synchronize_session=False)
+
+    # 2b. Real data holds a few labor/kitting rows that belong to ANOTHER
+    #     traveler yet point at this one's steps (travelers 96-99 vs 98/100/102 —
+    #     most likely a clone or a mis-scan). Those rows must survive the delete
+    #     with their hours intact, so just drop the dangling step link instead.
+    if step_ids:
+        db.query(LaborEntry).filter(
+            LaborEntry.step_id.in_(step_ids),
+            LaborEntry.traveler_id != traveler.id,
+        ).update({LaborEntry.step_id: None}, synchronize_session=False)
+        db.query(KittingTimerSession).filter(
+            KittingTimerSession.step_id.in_(step_ids),
+            KittingTimerSession.traveler_id != traveler.id,
+        ).update({KittingTimerSession.step_id: None}, synchronize_session=False)
+
+    # 3. Legacy table with no ORM model but a live NO ACTION FK on travelers.id.
+    #    Guarded because environments built purely from models.py lack it.
+    from sqlalchemy import inspect as sa_inspect, text as sa_text
+    if sa_inspect(db.bind).has_table("traveler_time_entries"):
+        db.execute(
+            sa_text("DELETE FROM traveler_time_entries WHERE traveler_id = :tid"),
+            {"tid": traveler.id},
+        )
+
+    # 4. Now the steps, then the remaining direct children.
+    db.query(ProcessStep).filter(ProcessStep.traveler_id == traveler.id).delete(synchronize_session=False)
+    db.query(ManualStep).filter(ManualStep.traveler_id == traveler.id).delete(synchronize_session=False)
+    db.query(AuditLog).filter(AuditLog.traveler_id == traveler.id).delete(synchronize_session=False)
+    db.query(TravelerTrackingLog).filter(TravelerTrackingLog.traveler_id == traveler.id).delete(synchronize_session=False)
+    db.query(Approval).filter(Approval.traveler_id == traveler.id).delete(synchronize_session=False)
+    db.query(JobDocument).filter(JobDocument.traveler_id == traveler.id).delete(synchronize_session=False)
+    db.query(CommunicationLog).filter(CommunicationLog.traveler_id == traveler.id).delete(synchronize_session=False)
+    db.query(RmaUnitTracking).filter(RmaUnitTracking.traveler_id == traveler.id).delete(synchronize_session=False)
 
     db.delete(traveler)
     db.commit()
