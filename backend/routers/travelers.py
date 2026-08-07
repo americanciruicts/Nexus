@@ -27,6 +27,45 @@ router = APIRouter()
 security = HTTPBearer(auto_error=False)  # Don't auto-error on missing auth
 
 
+# RMA / Modification travelers render a different header than the standard one,
+# and that header has no "Quantity" field — the quantity the user actually fills
+# in is "Quantity RMA issued for". The form therefore always posted quantity=1
+# (its `Number(quantity) || 1` fallback over an untouched 0), so every RMA
+# traveler card read "Qty: 1" no matter what the traveler itself said, and there
+# was no field anywhere to raise it. Derive the real quantity instead.
+RMA_TRAVELER_TYPES = {"RMA_SAME", "RMA_DIFF", "MODIFICATION"}
+
+
+def resolve_traveler_quantity(traveler_data, rma_units=None, current=None):
+    """Quantity to store for a traveler.
+
+    Non-RMA travelers keep whatever the form posted — they have a real Quantity
+    field. RMA/Modification travelers fall back through the RMA quantity fields
+    in the order the header presents them, then to the number of unit rows.
+    `current` keeps an existing value when an update omits the source fields.
+    """
+    posted = traveler_data.quantity
+    raw_type = getattr(traveler_data, "traveler_type", None)
+    type_name = getattr(raw_type, "value", raw_type)
+    if type_name not in RMA_TRAVELER_TYPES:
+        return posted if posted else (current or 1)
+
+    for candidate in (
+        traveler_data.quantity_rma_issued,
+        traveler_data.units_received,
+        traveler_data.units_shipped,
+        len(rma_units) if rma_units else None,
+    ):
+        if candidate and candidate > 0:
+            return candidate
+
+    # Nothing to derive from. Honour an explicitly-set quantity over the
+    # form's default of 1, and never downgrade a value already stored.
+    if posted and posted > 1:
+        return posted
+    return current or posted or 1
+
+
 # Every department name the traveler recognises. This is a PARSING allow-list:
 # it is what lets a compound work-center department like "Receiving/Test" split
 # into its parts. Names must stay here even when hidden from the UI — dropping
@@ -391,6 +430,8 @@ async def create_traveler(
         # PCB parts don't need labor hours, all others do by default
         include_labor_hours = traveler_data.include_labor_hours if traveler_data.traveler_type != "PCB" else False
 
+        resolved_quantity = resolve_traveler_quantity(traveler_data, traveler_data.rma_units)
+
         # Create traveler
         db_traveler = Traveler(
             job_number=traveler_data.job_number,
@@ -401,7 +442,7 @@ async def create_traveler(
             part_description=traveler_data.part_description,
             revision=traveler_data.revision,
             customer_revision=traveler_data.customer_revision,
-            quantity=traveler_data.quantity,
+            quantity=resolved_quantity,
             customer_code=traveler_data.customer_code,
             customer_name=traveler_data.customer_name,
             priority=traveler_data.priority,
@@ -1903,7 +1944,9 @@ async def update_traveler(
     traveler.part_description = traveler_data.part_description
     traveler.revision = traveler_data.revision
     traveler.customer_revision = traveler_data.customer_revision
-    traveler.quantity = traveler_data.quantity
+    traveler.quantity = resolve_traveler_quantity(
+        traveler_data, traveler_data.rma_units, current=traveler.quantity
+    )
     traveler.customer_code = traveler_data.customer_code
     traveler.customer_name = traveler_data.customer_name
     traveler.priority = traveler_data.priority
