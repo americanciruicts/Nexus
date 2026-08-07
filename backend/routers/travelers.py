@@ -1969,6 +1969,27 @@ async def update_traveler(
         traveler.is_active = traveler_data.is_active
     # Persist the RMA number (distinct from job number) on edit
     traveler.rma_number = traveler_data.rma_number
+    # The rest of the RMA header used to be write-once: create stored it, but
+    # update never assigned it, so editing "Quantity RMA issued for" (or any
+    # other header field) and hitting Save silently discarded the new value and
+    # the old one reappeared on reload. Assign the whole block for RMA types so
+    # edits — including clearing a field — actually stick.
+    incoming_type = getattr(traveler_data.traveler_type, "value", traveler_data.traveler_type)
+    if incoming_type in RMA_TRAVELER_TYPES:
+        traveler.customer_contact = traveler_data.customer_contact
+        traveler.original_wo_number = traveler_data.original_wo_number
+        traveler.original_po_number = traveler_data.original_po_number
+        traveler.return_po_number = traveler_data.return_po_number
+        traveler.rma_po_number = traveler_data.rma_po_number
+        traveler.invoice_number = traveler_data.invoice_number
+        traveler.customer_ncr = traveler_data.customer_ncr
+        traveler.original_built_quantity = traveler_data.original_built_quantity
+        traveler.units_shipped = traveler_data.units_shipped
+        traveler.quantity_rma_issued = traveler_data.quantity_rma_issued
+        traveler.units_received = traveler_data.units_received
+        traveler.customer_revision_sent = traveler_data.customer_revision_sent
+        traveler.customer_revision_received = traveler_data.customer_revision_received
+        traveler.rma_notes = traveler_data.rma_notes
     # Persist the operator-selected WO type label (RMA / Modification / Rework / …)
     if traveler_data.wo_type_label is not None:
         traveler.wo_type_label = traveler_data.wo_type_label

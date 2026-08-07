@@ -1090,6 +1090,26 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
           sub_steps: []
         })),
         manual_steps: [],
+        // The RMA header block. Create and Save-as-draft always sent these, but
+        // the edit-mode PUT only sent rma_number — so changing "Quantity RMA
+        // issued for" (or any other header field) and saving silently dropped
+        // the new value and the old one came back on reload.
+        ...(isRmaType(editedTraveler.travelerType || '') ? {
+          customer_contact: editedTraveler.customerContact || '',
+          original_wo_number: editedTraveler.originalWoNumber || '',
+          original_po_number: editedTraveler.originalPoNumber || '',
+          return_po_number: editedTraveler.returnPoNumber || '',
+          rma_po_number: editedTraveler.rmaPoNumber || '',
+          invoice_number: editedTraveler.invoiceNumber || '',
+          customer_ncr: editedTraveler.customerNcr || '',
+          original_built_quantity: editedTraveler.originalBuiltQuantity || null,
+          units_shipped: editedTraveler.unitsShipped || null,
+          quantity_rma_issued: editedTraveler.quantityRmaIssued || null,
+          units_received: editedTraveler.unitsReceived || null,
+          customer_revision_sent: editedTraveler.customerRevisionSent || '',
+          customer_revision_received: editedTraveler.customerRevisionReceived || '',
+          rma_notes: editedTraveler.rmaNotes || '',
+        } : {}),
         wo_type_label: editedTraveler.travelerType === 'MODIFICATION' ? (editedTraveler.woTypeLabel || 'Modification') : null,
         rma_table_columns: editedTraveler.rmaTableColumns ? JSON.stringify(editedTraveler.rmaTableColumns) : null,
         rma_units: (editedTraveler.rmaUnits || []).filter(u => u.serial_number || u.customer_complaint || (u.custom_values && Object.values(u.custom_values).some(v => v))).map(u => ({
