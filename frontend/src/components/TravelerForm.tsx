@@ -213,6 +213,9 @@ export default function TravelerForm({ mode = 'create', initialData, travelerId,
   // Work order selector for jobs with multiple work orders
   const [existingWorkOrders, setExistingWorkOrders] = useState<FullTravelerData[]>([]);
   const [showWorkOrderSelector, setShowWorkOrderSelector] = useState(false);
+  // What the operator typed — a bare job like "8762L" can match several filed
+  // jobs ("8762L CABLE", "8762L KANBAN"), so the picker heads with the term.
+  const [lookupTerm, setLookupTerm] = useState('');
 
   // Dynamic work centers from DB (fetched per traveler type)
   const [dynamicWorkCenters, setDynamicWorkCenters] = useState<WorkCenterItem[]>([]);
@@ -1133,8 +1136,9 @@ export default function TravelerForm({ mode = 'create', initialData, travelerId,
                         const allWorkOrders: FullTravelerData[] = await response.json();
                         if (allWorkOrders && allWorkOrders.length > 1) {
                           setExistingWorkOrders(allWorkOrders);
+                          setLookupTerm(value);
                           setShowWorkOrderSelector(true);
-                          toast.info(`Found ${allWorkOrders.length} work orders for job ${value}. Please select one to auto-fill from.`);
+                          toast.info(`Found ${allWorkOrders.length} travelers for "${value}". Please select one to auto-fill from.`);
                         } else if (allWorkOrders && allWorkOrders.length === 1) {
                           autoFillFromExisting(allWorkOrders[0]);
                         } else {
@@ -1162,8 +1166,9 @@ export default function TravelerForm({ mode = 'create', initialData, travelerId,
                       const allWorkOrders: FullTravelerData[] = await response.json();
                       if (allWorkOrders && allWorkOrders.length > 1) {
                         setExistingWorkOrders(allWorkOrders);
+                        setLookupTerm(value);
                         setShowWorkOrderSelector(true);
-                        toast.info(`Found ${allWorkOrders.length} work orders for this job. Please select one.`);
+                        toast.info(`Found ${allWorkOrders.length} travelers for "${value}". Please select one.`);
                       } else if (allWorkOrders && allWorkOrders.length === 1) {
                         autoFillFromExisting(allWorkOrders[0]);
                       } else {
@@ -1183,7 +1188,11 @@ export default function TravelerForm({ mode = 'create', initialData, travelerId,
             <div className="mb-4 bg-white dark:bg-slate-800 rounded-xl border-2 border-amber-300 dark:border-amber-600 p-4 shadow-lg">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-bold text-gray-800 dark:text-slate-200">
-                  Multiple Work Orders Found for Job: <span className="text-indigo-600 dark:text-indigo-400">{existingWorkOrders[0]?.job_number}</span>
+                  {new Set(existingWorkOrders.map(w => w.job_number)).size > 1 ? (
+                    <>Multiple Jobs Found for: <span className="text-indigo-600 dark:text-indigo-400">{lookupTerm}</span></>
+                  ) : (
+                    <>Multiple Work Orders Found for Job: <span className="text-indigo-600 dark:text-indigo-400">{existingWorkOrders[0]?.job_number}</span></>
+                  )}
                 </h3>
                 <button
                   onClick={() => { setShowWorkOrderSelector(false); setExistingWorkOrders([]); }}
@@ -1206,7 +1215,8 @@ export default function TravelerForm({ mode = 'create', initialData, travelerId,
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <span className="font-bold text-sm text-gray-800 dark:text-slate-200">WO: {wo.work_order_number}</span>
+                        <span className="font-bold text-sm text-gray-800 dark:text-slate-200">Job: {wo.job_number}</span>
+                        <span className="ml-2 font-bold text-sm text-gray-800 dark:text-slate-200">WO: {wo.work_order_number}</span>
                         <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">BOM Rev: {wo.revision}</span>
                         <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">| {wo.traveler_type}</span>
                       </div>
@@ -1425,8 +1435,9 @@ export default function TravelerForm({ mode = 'create', initialData, travelerId,
                           const allWorkOrders: FullTravelerData[] = await response.json();
                           if (allWorkOrders && allWorkOrders.length > 1) {
                             setExistingWorkOrders(allWorkOrders);
+                            setLookupTerm(value);
                             setShowWorkOrderSelector(true);
-                            toast.info(`Found ${allWorkOrders.length} work orders for job ${value}. Select one to auto-fill.`);
+                            toast.info(`Found ${allWorkOrders.length} travelers for "${value}". Select one to auto-fill.`);
                           } else if (allWorkOrders && allWorkOrders.length === 1) {
                             autoFillFromExisting(allWorkOrders[0]);
                           }
@@ -1508,7 +1519,11 @@ export default function TravelerForm({ mode = 'create', initialData, travelerId,
             <div className="mb-3 sm:mb-4 md:mb-6 bg-amber-50 dark:bg-amber-900/20 rounded-xl border-2 border-amber-300 dark:border-amber-600 p-4 shadow-sm">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-bold text-gray-800 dark:text-slate-200">
-                  Select Work Order for Job: <span className="text-indigo-600 dark:text-indigo-400">{existingWorkOrders[0]?.job_number}</span>
+                  {new Set(existingWorkOrders.map(w => w.job_number)).size > 1 ? (
+                    <>Select Traveler for: <span className="text-indigo-600 dark:text-indigo-400">{lookupTerm}</span></>
+                  ) : (
+                    <>Select Work Order for Job: <span className="text-indigo-600 dark:text-indigo-400">{existingWorkOrders[0]?.job_number}</span></>
+                  )}
                 </h3>
                 <button
                   onClick={() => { setShowWorkOrderSelector(false); setExistingWorkOrders([]); }}
@@ -1531,7 +1546,8 @@ export default function TravelerForm({ mode = 'create', initialData, travelerId,
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <span className="font-bold text-sm text-gray-800 dark:text-slate-200">WO: {wo.work_order_number}</span>
+                        <span className="font-bold text-sm text-gray-800 dark:text-slate-200">Job: {wo.job_number}</span>
+                        <span className="ml-2 font-bold text-sm text-gray-800 dark:text-slate-200">WO: {wo.work_order_number}</span>
                         <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">BOM Rev: {wo.revision}</span>
                         <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">| {wo.traveler_type}</span>
                       </div>

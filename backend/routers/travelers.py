@@ -1092,7 +1092,9 @@ def _find_travelers_for_lookup(db: Session, raw: str):
 
     Matches job_number OR work_order_number (case-insensitive) so RMA/MOD
     travelers — whose RMA number lives in work_order_number — are findable.
-    Exact job-number hits rank ahead of work-order hits.
+    Exact job-number hits rank ahead of work-order hits. When nothing matches
+    exactly, retries on the leading token so a bare "8689L" finds the traveler
+    filed as "8689L CABLE ASSY".
     """
     from sqlalchemy.orm import joinedload
 
@@ -1101,15 +1103,40 @@ def _find_travelers_for_lookup(db: Session, raw: str):
         return []
 
     upper = [c.upper() for c in candidates]
-    travelers = db.query(Traveler).options(
-        joinedload(Traveler.process_steps)
-    ).filter(
+    base = db.query(Traveler).options(joinedload(Traveler.process_steps))
+
+    travelers = base.filter(
         or_(
             func.upper(Traveler.job_number).in_(upper),
             func.upper(Traveler.work_order_number).in_(upper),
             func.upper(Traveler.po_number).in_(upper),
         )
     ).all()
+
+    match_terms = upper
+    if not travelers:
+        # Nothing filed under exactly what was typed. Travelers carry a work
+        # descriptor on the job — "8689L CABLE ASSY", "8762L KANBAN" — while
+        # operators type the bare job, and sometimes the other way round. Retry
+        # on the leading token, in both directions.
+        #
+        # Fallback only, never widening: when an exact job exists, callers that
+        # refuse to guess between multiple hits (labor tracking makes the
+        # operator scan the WC QR) must keep seeing that single exact match.
+        heads = []
+        for c in upper:
+            head = c.split(' ')[0]
+            if head and head not in heads:
+                heads.append(head)
+        match_terms = heads
+
+        conditions = [func.upper(Traveler.job_number).in_(heads)]
+        for c in heads:
+            escaped = c.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+            conditions.append(
+                func.upper(Traveler.job_number).like(f'{escaped} %', escape='\\')
+            )
+        travelers = base.filter(or_(*conditions)).all()
 
     typed = (raw or '').strip().upper()
 
@@ -1119,11 +1146,13 @@ def _find_travelers_for_lookup(db: Session, raw: str):
         po = (t.po_number or '').upper()
         if job == typed or wo == typed or (po and po == typed):
             return 0          # exactly what the user typed
-        if wo in upper:
+        if wo in match_terms:
             return 1          # RMA/MOD number pulled out of a composite string
-        if job in upper:
+        if job in match_terms:
             return 2          # the job half of a composite string
-        return 3              # PO number
+        if any(job.startswith(f'{c} ') for c in match_terms):
+            return 3          # same job, plus a work descriptor ("CABLE ASSY")
+        return 4              # PO number
 
     # Latest revision first within a rank (preserves the previous
     # "latest revision wins" behaviour for plain job-number lookups).
