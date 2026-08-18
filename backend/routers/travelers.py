@@ -40,9 +40,14 @@ def resolve_traveler_quantity(traveler_data, rma_units=None, current=None):
     """Quantity to store for a traveler.
 
     Non-RMA travelers keep whatever the form posted — they have a real Quantity
-    field. RMA/Modification travelers fall back through the RMA quantity fields
-    in the order the header presents them, then to the number of unit rows.
-    `current` keeps an existing value when an update omits the source fields.
+    field. RMA/Modification travelers derive it from the RMA quantity fields,
+    then from the number of unit rows. `current` keeps an existing value when an
+    update omits the source fields.
+
+    Units Received leads. The customer may raise an RMA for 10 units and ship 6;
+    the shop reworks the 6 that arrived, so that is the quantity the traveler is
+    built to. "Quantity RMA issued for" is only what was authorised, and is used
+    solely as a fallback when nothing has been received yet.
     """
     posted = traveler_data.quantity
     raw_type = getattr(traveler_data, "traveler_type", None)
@@ -51,8 +56,8 @@ def resolve_traveler_quantity(traveler_data, rma_units=None, current=None):
         return posted if posted else (current or 1)
 
     for candidate in (
-        traveler_data.quantity_rma_issued,
         traveler_data.units_received,
+        traveler_data.quantity_rma_issued,
         traveler_data.units_shipped,
         len(rma_units) if rma_units else None,
     ):
