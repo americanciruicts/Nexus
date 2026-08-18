@@ -762,14 +762,25 @@ def admin_delete_session(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Admin override: delete a kitting timer session."""
+    """Admin override: delete a kitting timer session.
+
+    Soft delete — the session row is never removed, only stamped and filtered
+    out of every read.
+    """
     if getattr(current_user, "role", None) and str(current_user.role).upper().endswith("OPERATOR"):
         raise HTTPException(status_code=403, detail="Admin only")
     sess = db.query(KittingTimerSession).filter(KittingTimerSession.id == session_id).first()
     if not sess:
         raise HTTPException(status_code=404, detail="Session not found")
     traveler_id = sess.traveler_id
-    db.delete(sess)
+    # An open session is also closed out: the partial unique index
+    # uq_one_open_kitting_session_per_traveler still sees soft-deleted rows, so
+    # leaving end_time NULL would block the next session for this traveler.
+    _now = datetime.now(timezone.utc)
+    if sess.end_time is None:
+        sess.end_time = _now
+    sess.deleted_at = _now
+    sess.deleted_by = current_user.id
     _log_event(
         db,
         traveler_id,

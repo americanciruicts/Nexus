@@ -354,6 +354,14 @@ class LaborEntry(Base):
     qty_completed = Column(Integer, nullable=True)  # Quantity completed during this labor entry
     comment = Column(Text, nullable=True)  # Optional operator/admin comment
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # Soft delete. Nothing is ever removed from this table — "delete" stamps
+    # these and the row drops out of every ORM read (see install_soft_delete_filter
+    # below). Pass execution_options(include_deleted=True) to see them again.
+    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    # Plain Integer, not a ForeignKey: a second FK path to users would make
+    # SQLAlchemy ambiguous about relationships like User.labor_entries.
+    deleted_by = Column(Integer, nullable=True)  # users.id of whoever deleted it
+
 
     # Relationships
     traveler = relationship("Traveler", back_populates="labor_entries")
@@ -370,6 +378,14 @@ class PauseLog(Base):
     duration_seconds = Column(Float, nullable=True)  # Calculated on resume
     comment = Column(Text, nullable=True)
     reason = Column(String(32), nullable=True, default="BREAK")  # BREAK | WAITING_PARTS
+    # Soft delete. Nothing is ever removed from this table — "delete" stamps
+    # these and the row drops out of every ORM read (see install_soft_delete_filter
+    # below). Pass execution_options(include_deleted=True) to see them again.
+    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    # Plain Integer, not a ForeignKey: a second FK path to users would make
+    # SQLAlchemy ambiguous about relationships like User.labor_entries.
+    deleted_by = Column(Integer, nullable=True)  # users.id of whoever deleted it
+
 
     labor_entry = relationship("LaborEntry", back_populates="pause_logs")
 
@@ -412,6 +428,14 @@ class KittingTimerSession(Base):
     duration_seconds = Column(Float, nullable=True)  # populated on close
     note = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # Soft delete. Nothing is ever removed from this table — "delete" stamps
+    # these and the row drops out of every ORM read (see install_soft_delete_filter
+    # below). Pass execution_options(include_deleted=True) to see them again.
+    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    # Plain Integer, not a ForeignKey: a second FK path to users would make
+    # SQLAlchemy ambiguous about relationships like User.labor_entries.
+    deleted_by = Column(Integer, nullable=True)  # users.id of whoever deleted it
+
 
 
 class KittingEventLog(Base):
@@ -578,6 +602,14 @@ class JobDocument(Base):
     uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     note = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # Soft delete. Nothing is ever removed from this table — "delete" stamps
+    # these and the row drops out of every ORM read (see install_soft_delete_filter
+    # below). Pass execution_options(include_deleted=True) to see them again.
+    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    # Plain Integer, not a ForeignKey: a second FK path to users would make
+    # SQLAlchemy ambiguous about relationships like User.labor_entries.
+    deleted_by = Column(Integer, nullable=True)  # users.id of whoever deleted it
+
 
 
 class QualityCheckItem(Base):
@@ -595,6 +627,14 @@ class QualityCheckItem(Base):
     checked_at = Column(DateTime(timezone=True), nullable=True)
     fail_note = Column(Text, nullable=True)  # reason for failure
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # Soft delete. Nothing is ever removed from this table — "delete" stamps
+    # these and the row drops out of every ORM read (see install_soft_delete_filter
+    # below). Pass execution_options(include_deleted=True) to see them again.
+    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    # Plain Integer, not a ForeignKey: a second FK path to users would make
+    # SQLAlchemy ambiguous about relationships like User.labor_entries.
+    deleted_by = Column(Integer, nullable=True)  # users.id of whoever deleted it
+
 
 
 class CommunicationLog(Base):
@@ -610,6 +650,14 @@ class CommunicationLog(Base):
     contact_name = Column(String(100), nullable=True)  # who was communicated with
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # Soft delete. Nothing is ever removed from this table — "delete" stamps
+    # these and the row drops out of every ORM read (see install_soft_delete_filter
+    # below). Pass execution_options(include_deleted=True) to see them again.
+    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    # Plain Integer, not a ForeignKey: a second FK path to users would make
+    # SQLAlchemy ambiguous about relationships like User.labor_entries.
+    deleted_by = Column(Integer, nullable=True)  # users.id of whoever deleted it
+
 
 
 class WorkOrder(Base):
@@ -629,3 +677,53 @@ class WorkOrder(Base):
     process_template = Column(Text)  # JSON string of process steps
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+# ═══════════════════════════════════════════════════════════════════
+# SOFT DELETE
+# ═══════════════════════════════════════════════════════════════════
+
+# Nothing in NEXUS is ever removed from the database. Travelers archive in place
+# (status ARCHIVED); the records below carry deleted_at/deleted_by instead, and
+# this filter keeps them out of every ORM read — list endpoints, joins, eager
+# relationship loads and aggregate queries alike — so labor hour totals stay
+# correct without every one of the ~68 call sites having to remember a filter.
+#
+# To read deleted rows (recovery, audit), pass the execution option:
+#   db.query(LaborEntry).execution_options(include_deleted=True).all()
+SOFT_DELETE_MODELS = (
+    LaborEntry,
+    PauseLog,
+    KittingTimerSession,
+    JobDocument,
+    QualityCheckItem,
+    CommunicationLog,
+)
+
+
+def install_soft_delete_filter():
+    """Register the session-wide filter. Called once at import time."""
+    from sqlalchemy import event
+    from sqlalchemy.orm import Session as _Session, with_loader_criteria
+
+    @event.listens_for(_Session, "do_orm_execute")
+    def _exclude_soft_deleted(execute_state):
+        if not execute_state.is_select:
+            return
+        if execute_state.is_column_load:
+            # Refreshing an already-loaded object's own columns: leave it alone,
+            # otherwise a row soft-deleted in this transaction cannot be re-read.
+            return
+        # Relationship loads ARE filtered. SQLAlchemy propagates criteria from the
+        # parent query to lazy loads, but only when the parent was itself loaded
+        # through a filtered query — an object obtained via db.refresh() or newly
+        # added to the session was not, and its collections would then still show
+        # deleted rows. Re-applying the same criteria is harmless.
+        if execute_state.execution_options.get("include_deleted", False):
+            return
+        for model in SOFT_DELETE_MODELS:
+            execute_state.statement = execute_state.statement.options(
+                with_loader_criteria(model, model.deleted_at.is_(None), include_aliases=True)
+            )
+
+
+install_soft_delete_filter()

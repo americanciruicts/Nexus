@@ -409,6 +409,34 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"Warning: Could not auto-migrate qty_completed column: {e}")
 
+    # Auto-migrate: soft-delete columns. Nothing in NEXUS is removed from the
+    # database; these endpoints stamp deleted_at/deleted_by instead of issuing a
+    # DELETE, and models.install_soft_delete_filter keeps stamped rows out of
+    # every ORM read.
+    try:
+        from sqlalchemy import text, inspect as sa_inspect_sd
+        soft_delete_tables = (
+            'labor_entries', 'pause_logs', 'kitting_timer_sessions',
+            'job_documents', 'quality_check_items', 'communication_logs',
+        )
+        with engine.connect() as conn:
+            insp = sa_inspect_sd(engine)
+            existing = set(insp.get_table_names())
+            for table in soft_delete_tables:
+                if table not in existing:
+                    continue
+                cols = [c['name'] for c in insp.get_columns(table)]
+                if 'deleted_at' not in cols:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN deleted_at TIMESTAMP WITH TIME ZONE"))
+                    conn.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{table}_deleted_at ON {table} (deleted_at)"))
+                    print(f"Added 'deleted_at' column to {table}")
+                if 'deleted_by' not in cols:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN deleted_by INTEGER"))
+                    print(f"Added 'deleted_by' column to {table}")
+            conn.commit()
+    except Exception as e:
+        print(f"Warning: Could not auto-migrate soft-delete columns: {e}")
+
     # Auto-migrate: add RMA enum values to travelertype
     try:
         from sqlalchemy import text as text_rma_enum

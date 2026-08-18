@@ -453,7 +453,11 @@ async def delete_work_center(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Delete a work center (Admin only)"""
+    """Delete a work center (Admin only).
+
+    Deactivates it — the row is never removed, so historical labor and steps
+    that reference it stay resolvable.
+    """
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Only admins can delete work centers")
 
@@ -474,7 +478,10 @@ async def delete_work_center(
               field_changed="*", old_value=deleted_snapshot,
               request=request)
 
-    db.delete(wc)
+    # Deactivate, never remove. Labor entries and process steps reference a work
+    # center by code; dropping the row would leave that history pointing at a
+    # work center nobody can look up. is_active=False takes it out of use.
+    wc.is_active = False
     db.commit()
     _notify_admins_wc(
         db=db,

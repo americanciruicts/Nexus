@@ -861,8 +861,13 @@ function TravelersPage() {
             <div className="relative z-10 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-sm font-bold text-white">Travelers List</h2>
+                {/* Always show the loaded total next to the filtered count. The
+                    page once rendered a silently truncated list that looked
+                    complete; with the total on screen a shortfall is visible. */}
                 <span className="text-xs font-semibold text-white bg-white/20 px-2 py-0.5 rounded-full">
-                  {filteredTravelers.length}
+                  {filteredTravelers.length === travelers.length
+                    ? travelers.length
+                    : `${filteredTravelers.length} of ${travelers.length}`}
                 </span>
               </div>
               <div className="flex items-center gap-1.5">

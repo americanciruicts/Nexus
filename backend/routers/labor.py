@@ -962,7 +962,12 @@ async def delete_labor_entry(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Delete a labor entry (Admin only)"""
+    """Delete a labor entry (Admin only).
+
+    Soft delete — the row is never removed from the database. It is stamped with
+    deleted_at/deleted_by and disappears from every read, so the hours come out
+    of all totals while the record itself remains recoverable.
+    """
 
     # Check if user is admin
     if current_user.role != UserRole.ADMIN:
@@ -999,7 +1004,19 @@ async def delete_labor_entry(
         if pl.comment:
             del_details.append(f"Pause reason: {pl.comment}")
 
-    db.delete(labor_entry)
+    # Soft delete: the row stays in the database for good. Its hours leave every
+    # total because models.install_soft_delete_filter drops stamped rows from all
+    # ORM reads. An open (running) timer is also closed out — the partial unique
+    # index uq_one_open_labor_entry_per_employee still sees soft-deleted rows, so
+    # leaving end_time NULL would block the employee from starting a new entry.
+    if labor_entry.end_time is None:
+        labor_entry.end_time = datetime.now(timezone.utc)
+        labor_entry.is_completed = True
+    labor_entry.deleted_at = datetime.now(timezone.utc)
+    labor_entry.deleted_by = current_user.id
+    for _pl in pause_logs:
+        _pl.deleted_at = labor_entry.deleted_at
+        _pl.deleted_by = current_user.id
     db.commit()
 
     del_msg = f"{current_user.username} deleted labor entry for {job_number} - {work_center}"
@@ -1072,7 +1089,10 @@ async def delete_pause_log(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Admin: Delete a pause log and recalculate hours"""
+    """Admin: Delete a pause log and recalculate hours.
+
+    Soft delete — the row is never removed, only stamped and filtered out.
+    """
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
 
@@ -1080,7 +1100,12 @@ async def delete_pause_log(
     if not pause_log:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pause log not found")
 
-    db.delete(pause_log)
+    # Soft delete — the pause row stays; the flush is required because the
+    # session runs with autoflush=False, and the recalculation below must not
+    # count a pause that has just been stamped.
+    pause_log.deleted_at = datetime.now(timezone.utc)
+    pause_log.deleted_by = current_user.id
+    db.flush()
 
     # Recalculate hours_worked
     labor_entry = db.query(LaborEntry).filter(LaborEntry.id == labor_id).first()

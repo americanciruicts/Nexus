@@ -180,13 +180,12 @@ def delete_document(doc_id: int, db: Session = Depends(get_db), current_user: Us
         raise HTTPException(403, "Only admins can delete documents")
     doc = db.query(JobDocument).filter(JobDocument.id == doc_id).first()
     if not doc: raise HTTPException(404, "Document not found")
-    # Remove file from disk
-    try:
-        if os.path.exists(doc.file_path):
-            os.remove(doc.file_path)
-    except Exception:
-        pass
-    db.delete(doc); db.commit()
+    # Soft delete. The row is stamped and filtered out of every read, and the
+    # uploaded file is deliberately LEFT on disk — deleting it would make the
+    # record unrecoverable, which is exactly what must not happen here.
+    doc.deleted_at = datetime.now(timezone.utc)
+    doc.deleted_by = current_user.id
+    db.commit()
     return {"ok": True}
 
 @router.get("/documents/file/{doc_id}/raw")
@@ -259,7 +258,10 @@ def update_check(check_id: int, body: CheckItemUpdate, db: Session = Depends(get
 def delete_check(check_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     item = db.query(QualityCheckItem).filter(QualityCheckItem.id == check_id).first()
     if not item: raise HTTPException(404)
-    db.delete(item); db.commit()
+    # Soft delete — the check item row is never removed.
+    item.deleted_at = datetime.now(timezone.utc)
+    item.deleted_by = current_user.id
+    db.commit()
     return {"ok": True}
 
 
@@ -303,7 +305,10 @@ def add_comm(traveler_id: int, body: CommLogCreate, db: Session = Depends(get_db
 def delete_comm(log_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     log = db.query(CommunicationLog).filter(CommunicationLog.id == log_id).first()
     if not log: raise HTTPException(404)
-    db.delete(log); db.commit()
+    # Soft delete — the communication record is never removed.
+    log.deleted_at = datetime.now(timezone.utc)
+    log.deleted_by = current_user.id
+    db.commit()
     return {"ok": True}
 
 

@@ -147,9 +147,13 @@ async def delete_user(
             detail="User not found"
         )
 
-    # Hard delete - remove user from database
+    # Deactivate, never remove. A user row is the attribution on every labor
+    # entry, audit row and traveler they touched; dropping it would orphan that
+    # history. is_active=False already hides them from the user list and blocks
+    # login, so this is a delete from the admin's point of view without losing
+    # who did what.
     username = user.username
-    db.delete(user)
+    user.is_active = False
     db.commit()
 
     return {"message": f"User '{username}' deleted successfully"}
