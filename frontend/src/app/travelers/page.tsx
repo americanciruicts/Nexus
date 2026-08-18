@@ -25,6 +25,7 @@ import { API_BASE_URL } from '@/config/api';
 import { DEPARTMENT_BAR_COLORS } from '@/data/workCenters';
 import { PageHeaderSkeleton, TableSkeleton } from '@/components/ui/LoadingSkeleton';
 import { readLiveCache, writeLiveCache, notifyDataUpdated, LIVE_REFRESH_MS } from '@/lib/liveCache';
+import { fetchAllTravelerRows } from '@/lib/travelersApi';
 
 const TRAVELERS_CACHE_KEY = 'nexus_travelers_v1';
 
@@ -358,14 +359,8 @@ function TravelersPage() {
 
   const fetchTravelers = async (retryCount = 0, isPoll = false) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/travelers/?limit=200`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('nexus_token') || ''}`
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
+      {
+        const data = await fetchAllTravelerRows();
         const formattedTravelers = data.map((t: Record<string, unknown>) => ({
           id: String(t.job_number),
           dbId: Number(t.id),
@@ -410,12 +405,6 @@ function TravelersPage() {
         writeLiveCache(TRAVELERS_CACHE_KEY, formattedTravelers);
         setTravelersLoading(false);
         if (isPoll && changed) notifyDataUpdated();
-      } else {
-        // Non-OK response — retry once without auth header (fallback)
-        console.error('Travelers fetch failed:', response.status, response.statusText);
-        if (retryCount < 1) {
-          fetchTravelers(retryCount + 1, isPoll);
-        }
       }
     } catch (error) {
       console.error('Error fetching travelers:', error);
@@ -633,22 +622,22 @@ function TravelersPage() {
         )
       );
 
-      showToast(`Deleted ${selectedTravelers.length} traveler(s)!`, 'success');
+      showToast(`Archived ${selectedTravelers.length} traveler(s) — find them under Archived`, 'success');
       setSelectedTravelers([]);
       fetchTravelers();
     } catch (error) {
       console.error('Error deleting travelers:', error);
-      showToast('Failed to delete travelers', 'error');
+      showToast('Failed to archive travelers', 'error');
     }
     closeConfirm();
   };
 
   const deleteSelected = () => {
     if (selectedTravelers.length === 0) {
-      showToast('Please select travelers to delete', 'error');
+      showToast('Please select travelers to archive', 'error');
       return;
     }
-    showConfirm('Delete Travelers', `WARNING: This will permanently delete ${selectedTravelers.length} traveler(s)!\n\nThis action cannot be undone.`, doDeleteSelected, 'Delete');
+    showConfirm('Archive Travelers', `Archive ${selectedTravelers.length} traveler(s)?\n\nNothing is deleted — they keep all their steps, labor and history, and you can restore them from Travelers -> Archived.`, doDeleteSelected, 'Archive');
   };
 
   const exportSelectedPDFs = async () => {
@@ -855,7 +844,7 @@ function TravelersPage() {
                 className="flex items-center space-x-1 px-2.5 py-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 dark:disabled:bg-slate-600 text-white rounded text-xs font-semibold disabled:cursor-not-allowed"
               >
                 <TrashIcon className="h-3.5 w-3.5" />
-                <span>Delete ({selectedTravelers.length})</span>
+                <span>Archive ({selectedTravelers.length})</span>
               </button>
             </div>
           )}
@@ -1083,18 +1072,18 @@ function TravelersPage() {
                               </Link>
                               <button
                                 onClick={() => {
-                                  showConfirm('Delete Traveler', `Are you sure you want to DELETE traveler ${traveler.jobNumber}?\n\nThis cannot be undone!`,
+                                  showConfirm('Archive Traveler', `Archive traveler ${traveler.jobNumber}?\n\nNothing is deleted — it keeps all its steps, labor and history, and you can restore it from Travelers -> Archived.`,
                                     async () => {
                                       try {
                                         const token = localStorage.getItem('nexus_token');
                                         const response = await fetch(`${API_BASE_URL}/travelers/${traveler.dbId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-                                        if (response.ok) { showToast(`Traveler ${traveler.jobNumber} deleted!`, 'success'); fetchTravelers(); }
-                                        else { showToast('Failed to delete traveler', 'error'); }
-                                      } catch (error) { console.error('Error:', error); showToast('Failed to delete traveler', 'error'); }
+                                        if (response.ok) { showToast(`Traveler ${traveler.jobNumber} archived`, 'success'); fetchTravelers(); }
+                                        else { showToast('Failed to archive traveler', 'error'); }
+                                      } catch (error) { console.error('Error:', error); showToast('Failed to archive traveler', 'error'); }
                                       closeConfirm();
                                     }, 'Delete');
                                 }}
-                                className="p-0.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors flex items-center justify-center" title="Delete"
+                                className="p-0.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors flex items-center justify-center" title="Archive"
                               >
                                 <TrashIcon className="h-4 w-4" />
                               </button>
@@ -1397,8 +1386,8 @@ function TravelersPage() {
                               <button
                                 onClick={() => {
                                   showConfirm(
-                                    'Delete Traveler',
-                                    `Are you sure you want to DELETE traveler ${traveler.jobNumber}?\n\nThis cannot be undone!`,
+                                    'Archive Traveler',
+                                    `Archive traveler ${traveler.jobNumber}?\n\nNothing is deleted — it keeps all its steps, labor and history, and you can restore it from Travelers -> Archived.`,
                                     async () => {
                                       try {
                                         const token = localStorage.getItem('nexus_token');
@@ -1407,14 +1396,14 @@ function TravelersPage() {
                                           headers: { 'Authorization': `Bearer ${token}` }
                                         });
                                         if (response.ok) {
-                                          showToast(`Traveler ${traveler.jobNumber} deleted!`, 'success');
+                                          showToast(`Traveler ${traveler.jobNumber} archived`, 'success');
                                           fetchTravelers();
                                         } else {
-                                          showToast('Failed to delete traveler', 'error');
+                                          showToast('Failed to archive traveler', 'error');
                                         }
                                       } catch (error) {
                                         console.error('Error:', error);
-                                        showToast('Failed to delete traveler', 'error');
+                                        showToast('Failed to archive traveler', 'error');
                                       }
                                       closeConfirm();
                                     },
@@ -1422,10 +1411,10 @@ function TravelersPage() {
                                   );
                                 }}
                                 className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors flex flex-col items-center justify-center"
-                                title="Delete"
+                                title="Archive"
                               >
                                 <TrashIcon className="h-5 w-5" />
-                                <span className="text-[10px] mt-0.5">Delete</span>
+                                <span className="text-[10px] mt-0.5">Archive</span>
                               </button>
                             </>
                           )}

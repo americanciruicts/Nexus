@@ -17,7 +17,7 @@ from schemas.traveler_schemas import (
     LinkTravelersRequest, TravelerGroupInfo, TravelerGroupMember
 )
 from schemas.tracking_schemas import TrackingScanRequest, TrackingScanResponse, TrackingLogResponse
-from routers.auth import get_current_user, get_password_hash
+from routers.auth import get_current_user
 from services.email_service import send_approval_notification
 from services.notification_service import create_notification_for_admins
 
@@ -2293,7 +2293,17 @@ async def delete_traveler(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Delete a traveler (admin only)"""
+    """Archive a traveler (admin only).
+
+    NOTHING IS EVER REMOVED. This endpoint used to hard-delete the traveler along
+    with every process step, labor entry, scan, document — and its own audit log,
+    so a deletion left no trace of what was deleted, by whom, or when. That is how
+    the 8813L series vanished with no record and nothing in the backups to restore.
+
+    "Delete" now archives: the row and all of its history stay in the database, the
+    traveler moves to ARCHIVED, and an admin can restore it from
+    Travelers -> Archived (which puts back its pre-archive status).
+    """
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -2311,105 +2321,49 @@ async def delete_traveler(
     job_number = traveler.job_number
     part_description = traveler.part_description
 
-    # Get user for notification. The "system" placeholder must never be a
-    # loginable account, so it is created inactive with a random, unusable
-    # password (previously it used a hardcoded bcrypt hash and was a loginable
-    # OPERATOR).
-    default_user = db.query(User).filter(User.username == "system").first()
-    if not default_user:
-        import secrets
-        default_user = User(
-            username="system",
-            email="system@nexus.local",
-            first_name="System",
-            last_name="User",
-            hashed_password=get_password_hash(secrets.token_urlsafe(48)),
-            role=UserRole.OPERATOR,
-            is_approver=False,
-            is_active=False,
-        )
-        db.add(default_user)
-        db.commit()
-        db.refresh(default_user)
+    # Archive in place. Every child row (process steps, labor entries, scans,
+    # documents, approvals, audit history) is left exactly as it is — the whole
+    # point is that a "deleted" traveler remains fully reconstructable.
+    if traveler.status == TravelerStatus.ARCHIVED:
+        return {
+            "message": "Traveler is already archived",
+            "traveler_id": traveler.id,
+            "status": "ARCHIVED",
+        }
 
-    # Delete related records first. ORDER MATTERS: several child FKs are
-    # ON DELETE NO ACTION, so anything pointing at process_steps.id
-    # (labor_entries.step_id, sub_steps.process_step_id,
-    # kitting_timer_sessions.step_id) has to go BEFORE the process steps
-    # themselves. Deleting process_steps first raised an IntegrityError that the
-    # global handler turned into a 409 — which made every traveler with logged
-    # labor undeletable (181 of 199 at the time this was fixed).
-    from models import (
-        LaborEntry, Approval, StepScanEvent, KittingTimerSession,
-        KittingEventLog, JobDocument, CommunicationLog, QualityCheckItem,
-    )
+    previous_status = traveler.status.value if hasattr(traveler.status, "value") else str(traveler.status)
+    traveler.previous_status = previous_status
+    traveler.status = TravelerStatus.ARCHIVED
 
-    step_ids = [
-        row[0] for row in
-        db.query(ProcessStep.id).filter(ProcessStep.traveler_id == traveler.id).all()
-    ]
-
-    # 1. Grandchildren of process_steps (must precede the steps).
-    if step_ids:
-        db.query(SubStep).filter(SubStep.process_step_id.in_(step_ids)).delete(synchronize_session=False)
-        db.query(QualityCheckItem).filter(QualityCheckItem.step_id.in_(step_ids)).delete(synchronize_session=False)
-
-    # 2. Direct children that also reference a step. kitting_event_logs first —
-    #    its session_id FK is SET NULL, but deleting the logs outright is what we
-    #    want. pause_logs cascade off labor_entries automatically.
-    db.query(KittingEventLog).filter(KittingEventLog.traveler_id == traveler.id).delete(synchronize_session=False)
-    db.query(KittingTimerSession).filter(KittingTimerSession.traveler_id == traveler.id).delete(synchronize_session=False)
-    db.query(LaborEntry).filter(LaborEntry.traveler_id == traveler.id).delete(synchronize_session=False)
-    db.query(StepScanEvent).filter(StepScanEvent.traveler_id == traveler.id).delete(synchronize_session=False)
-
-    # 2b. Real data holds a few labor/kitting rows that belong to ANOTHER
-    #     traveler yet point at this one's steps (travelers 96-99 vs 98/100/102 —
-    #     most likely a clone or a mis-scan). Those rows must survive the delete
-    #     with their hours intact, so just drop the dangling step link instead.
-    if step_ids:
-        db.query(LaborEntry).filter(
-            LaborEntry.step_id.in_(step_ids),
-            LaborEntry.traveler_id != traveler.id,
-        ).update({LaborEntry.step_id: None}, synchronize_session=False)
-        db.query(KittingTimerSession).filter(
-            KittingTimerSession.step_id.in_(step_ids),
-            KittingTimerSession.traveler_id != traveler.id,
-        ).update({KittingTimerSession.step_id: None}, synchronize_session=False)
-
-    # 3. Legacy table with no ORM model but a live NO ACTION FK on travelers.id.
-    #    Guarded because environments built purely from models.py lack it.
-    from sqlalchemy import inspect as sa_inspect, text as sa_text
-    if sa_inspect(db.bind).has_table("traveler_time_entries"):
-        db.execute(
-            sa_text("DELETE FROM traveler_time_entries WHERE traveler_id = :tid"),
-            {"tid": traveler.id},
-        )
-
-    # 4. Now the steps, then the remaining direct children.
-    db.query(ProcessStep).filter(ProcessStep.traveler_id == traveler.id).delete(synchronize_session=False)
-    db.query(ManualStep).filter(ManualStep.traveler_id == traveler.id).delete(synchronize_session=False)
-    db.query(AuditLog).filter(AuditLog.traveler_id == traveler.id).delete(synchronize_session=False)
-    db.query(TravelerTrackingLog).filter(TravelerTrackingLog.traveler_id == traveler.id).delete(synchronize_session=False)
-    db.query(Approval).filter(Approval.traveler_id == traveler.id).delete(synchronize_session=False)
-    db.query(JobDocument).filter(JobDocument.traveler_id == traveler.id).delete(synchronize_session=False)
-    db.query(CommunicationLog).filter(CommunicationLog.traveler_id == traveler.id).delete(synchronize_session=False)
-    db.query(RmaUnitTracking).filter(RmaUnitTracking.traveler_id == traveler.id).delete(synchronize_session=False)
-
-    db.delete(traveler)
+    # Permanent record of who archived it and what state it was in — this is the
+    # row the old hard delete used to destroy along with the traveler.
+    db.add(AuditLog(
+        traveler_id=traveler.id,
+        user_id=current_user.id,
+        action="ARCHIVED",
+        field_changed="status",
+        old_value=previous_status,
+        new_value="ARCHIVED",
+    ))
     db.commit()
 
-    # Create notification for all admins
+    # Notify admins. Attributed to the actual admin who did it, not "system" —
+    # the old code looked up a placeholder user here and the real actor was lost.
     create_notification_for_admins(
         db=db,
         notification_type=NotificationType.TRAVELER_DELETED,
-        title="Traveler Deleted",
-        message=f"{default_user.username} deleted traveler {job_number} - {part_description}",
+        title="Traveler Archived",
+        message=f"{current_user.username} archived traveler {job_number} - {part_description}. It is recoverable from Travelers -> Archived.",
         reference_id=traveler_id,
         reference_type="traveler",
-        created_by_username=default_user.username
+        created_by_username=current_user.username
     )
 
-    return {"message": "Traveler deleted successfully"}
+    return {
+        "message": "Traveler archived. It stays in the system and can be restored from Travelers -> Archived.",
+        "traveler_id": traveler_id,
+        "status": "ARCHIVED",
+    }
 
 @router.post("/scan", response_model=TrackingScanResponse)
 async def scan_tracking_code(

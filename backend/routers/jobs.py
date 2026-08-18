@@ -168,6 +168,42 @@ def lookup_job(job_number: str, current_user=Depends(get_current_user)):
 # ─── ENRICHED JOBS LIST (bulk enriched data for list page) ────────────────
 # NOTE: Must be before /{job_number} to avoid being caught by the catch-all route
 
+def traveler_matches_job(traveler_jn: str, jn: str) -> bool:
+    """Does this traveler belong to this job number?
+
+    A traveler's job_number may carry compliance suffixes appended in the UI —
+    'L' (lead-free) and/or 'M' (ITAR), e.g. job "8414" -> traveler "8414L" — and
+    it may carry a trailing work descriptor, e.g. job "8689L" -> traveler
+    "8689L CABLE ASSY", which is the filing convention on roughly half the jobs.
+
+    We must NOT use a bare startswith(): that collides prefixes. Job "8414" would
+    swallow traveler "8414L" when both jobs are on the page, job "100" would grab
+    traveler "1000", and — the case this was tightened for — job "8813L-4D" would
+    claim traveler "8813L-4DA", making a job with no traveler look covered while
+    job "8813L-4" claimed all seven of its sub-assemblies' travelers.
+
+    So: exact match, then a trailing run of compliance letters, then a descriptor
+    separated by a space or hyphen whose text is purely alphabetic. That last
+    condition is what separates a descriptor from a sub-job: "-KANBAN" and
+    " CABLE ASSY" are work descriptors, while "-4A", "-2 ASSY" and "-1" carry
+    digits because they identify a different job.
+    """
+    tj, j = traveler_jn.upper().strip(), jn.upper().strip()
+    if tj == j:
+        return True
+    if not tj.startswith(j):
+        return False
+    remainder = tj[len(j):]
+    if all(c in ("L", "M") for c in remainder):
+        return True
+    if remainder[0] not in (" ", "-"):
+        # "8813L-4DA" against job "8813L-4D" lands here: no separator, so the
+        # traveler belongs to a different job.
+        return False
+    descriptor = remainder[1:].replace(" ", "").replace("-", "")
+    return descriptor.isalpha()
+
+
 @router.get("/list-enriched")
 def list_jobs_enriched(
     q: Optional[str] = Query(None),
@@ -236,7 +272,10 @@ def list_jobs_enriched(
     # We must NOT use a bare startswith(): that collides prefixes (job "8414"
     # would swallow traveler "8414L" when both jobs are on the page, and job
     # "100" would grab traveler "1000"). Match exactly first, then allow only a
-    # trailing run of compliance letters.
+    # trailing run of compliance letters. Deliberately NARROWER than
+    # traveler_matches_job: this mapping decides which job a traveler's labor
+    # hours are attributed to, so a descriptor suffix must not create a second
+    # candidate job and silently move someone's hours.
     def _job_matches(traveler_jn: str, jn: str) -> bool:
         tj, j = traveler_jn.upper(), jn.upper()
         if tj == j:
@@ -512,14 +551,17 @@ def get_job_travelers(job_number: str, db: Session = Depends(get_db), current_us
     """Get all NEXUS travelers associated with this job number."""
     from models import Traveler, User, ProcessStep
 
-    # Match travelers whose job_number starts with the base job number
-    # (handles suffixes like L, M for lead-free / ITAR)
-    travelers = (
+    # A bare ILIKE prefix here claimed other jobs' travelers: job "8813L-4D" was
+    # shown "8813L-4DA"'s traveler and job "8813L-4" was shown all seven of its
+    # sub-assemblies', so jobs with no traveler of their own looked covered.
+    # Filter with the same rule the enriched job list uses.
+    candidates = (
         db.query(Traveler)
         .filter(Traveler.job_number.ilike(f"{job_number}%"))
         .order_by(Traveler.created_at.desc())
         .all()
     )
+    travelers = [t for t in candidates if traveler_matches_job(t.job_number, job_number)]
 
     result = []
     for t in travelers:

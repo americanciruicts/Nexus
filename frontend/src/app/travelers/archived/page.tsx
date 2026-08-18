@@ -7,13 +7,13 @@ import Layout from '@/components/layout/Layout';
 import {
   ArchiveBoxIcon,
   ArchiveBoxXMarkIcon,
-  TrashIcon,
   EyeIcon,
   CheckIcon,
   ArrowLeftIcon
 } from '@heroicons/react/24/outline';
 import { useAuth } from '@/context/AuthContext';
 import { API_BASE_URL } from '@/config/api';
+import { fetchAllTravelerRows } from '@/lib/travelersApi';
 
 type ArchivedTraveler = {
   id: number;
@@ -44,18 +44,13 @@ export default function ArchivedTravelersPage() {
 
   const fetchArchivedTravelers = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/travelers/`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('nexus_token')}`
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        // Filter only archived travelers
-        const archivedData = data.filter((t: ArchivedTraveler) => t.status === 'ARCHIVED');
-        setTravelers(archivedData);
-      }
+      // Must page through the whole list: the endpoint's default page size is 50,
+      // so filtering a single request hid every archived traveler older than the
+      // 50 most recent ones.
+      const data = await fetchAllTravelerRows();
+      // Filter only archived travelers
+      const archivedData = (data as unknown as ArchivedTraveler[]).filter((t) => t.status === 'ARCHIVED');
+      setTravelers(archivedData);
     } catch (error) {
       console.error('Error fetching archived travelers:', error);
     } finally {
@@ -123,41 +118,9 @@ export default function ArchivedTravelersPage() {
     });
   };
 
-  const deleteSelected = async () => {
-    if (selectedTravelers.length === 0) {
-      toast.error('Please select travelers to delete');
-      return;
-    }
-
-    const count = selectedTravelers.length;
-    setConfirmModal({
-      title: 'Permanent Delete',
-      message: `This will permanently delete ${count} traveler(s)! This action CANNOT be undone. Are you absolutely sure?`,
-      onConfirm: async () => {
-        setConfirmModal(null);
-        try {
-          const token = localStorage.getItem('nexus_token');
-          await Promise.all(
-            selectedTravelers.map(id =>
-              fetch(`${API_BASE_URL}/travelers/${id}`, {
-                method: 'DELETE',
-                headers: {
-                  'Authorization': `Bearer ${token}`
-                }
-              })
-            )
-          );
-
-          toast.success(`Permanently deleted ${count} traveler(s)!`);
-          setSelectedTravelers([]);
-          fetchArchivedTravelers();
-        } catch (error) {
-          console.error('Error deleting travelers:', error);
-          toast.error('Failed to delete travelers');
-        }
-      }
-    });
-  };
+  // There is no permanent delete. Archiving is the end of the line for a
+  // traveler: the row and its full history stay in the database so nothing can
+  // ever disappear from the system. Restore is the only way back out.
 
   if (loading) {
     return (
@@ -236,16 +199,6 @@ export default function ArchivedTravelersPage() {
               >
                 <ArchiveBoxXMarkIcon className="h-4 w-4 sm:h-5 sm:w-5" />
                 <span>Restore ({selectedTravelers.length})</span>
-              </button>
-
-              <button
-                onClick={deleteSelected}
-                disabled={selectedTravelers.length === 0}
-                className="flex items-center space-x-1 sm:space-x-2 px-3 sm:px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-lg font-semibold shadow-md disabled:cursor-not-allowed text-xs sm:text-sm"
-              >
-                <TrashIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-                <span className="hidden sm:inline">Delete ({selectedTravelers.length})</span>
-                <span className="sm:hidden">Del ({selectedTravelers.length})</span>
               </button>
             </div>
           </div>
