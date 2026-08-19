@@ -3856,7 +3856,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
                     </td>
                     {/* Center: Job No + Barcode */}
                     <td className="border-r-2 border-black dark:border-slate-600 px-4 py-3 print:px-4 print:py-3 align-middle" style={{width: '40%'}}>
-                      <div className="flex flex-col gap-2 items-center text-center">
+                      <div className="flex flex-col gap-2 items-center text-center w-full">
                         <div>
                           {isEditing ? (
                             <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
@@ -3870,10 +3870,10 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
                             </div>
                           )}
                         </div>
-                        <div className="flex items-center justify-center gap-3">
-                          <div className="border-2 border-black dark:border-slate-600 bg-white rounded" style={{padding: '2px 4px'}}>
+                        <div className="flex items-center justify-center gap-3 w-full">
+                          <div className="border-2 border-black dark:border-slate-600 bg-white rounded min-w-0" style={{padding: '2px 4px'}}>
                             {headerBarcode ? (
-                              <img src={`data:image/png;base64,${headerBarcode}`} alt={`Barcode`} className="h-14" style={{ width: 'auto', maxWidth: '100%', imageRendering: 'pixelated' }} data-print-img="header-barcode" onLoad={handleHeaderBarcodeLoad} />
+                              <img src={`data:image/png;base64,${headerBarcode}`} alt={`Barcode`} className="h-14 max-w-full" style={{ width: 'auto', maxWidth: '100%', objectFit: 'contain', imageRendering: 'pixelated' }} data-print-img="header-barcode" onLoad={handleHeaderBarcodeLoad} />
                             ) : (
                               <div className="flex items-center justify-center h-14 print:h-28" style={{width: '160px'}}>
                                 <span className="text-[10px] text-gray-400">{createMode ? 'Barcode after save' : 'Loading...'}</span>
