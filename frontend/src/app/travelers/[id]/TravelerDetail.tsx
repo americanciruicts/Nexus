@@ -3844,28 +3844,33 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
             const isLongRoutingLabel = rmaLabel.length > 4;
             return (
           <div className="border-b-2 border-black dark:border-slate-600 print:break-inside-avoid">
-            {/* Top banner: RMA Job No. + Barcode | RMA ROUTING | To Stock / From Stock / Ship VIA */}
+            {/* Top banner: RMA ROUTING | RMA Job No. + Barcode | To Stock / From Stock / Ship VIA */}
             <div className="bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800 print:!bg-gray-100 border-b-2 border-black dark:border-slate-600">
               <table className="w-full border-collapse rma-header-banner" style={{tableLayout: 'fixed'}}>
                 <tbody>
                   <tr>
-                    {/* Left: Job No + Barcode */}
+                    {/* Left: RMA ROUTING title */}
+                    <td className="border-r-2 border-black dark:border-slate-600 px-4 py-3 print:px-4 print:py-3 text-center align-middle overflow-hidden" style={{width: '30%'}}>
+                      <div className={`font-black text-black dark:text-white leading-tight ${isLongRoutingLabel ? 'text-lg print:text-[18px] tracking-tight' : 'text-2xl print:text-[26px] tracking-wider'}`} style={{fontWeight: '900'}}>{rmaLabel.toUpperCase()}</div>
+                      <div className="text-lg font-bold text-black dark:text-white print:text-[18px] tracking-widest">ROUTING</div>
+                    </td>
+                    {/* Center: Job No + Barcode */}
                     <td className="border-r-2 border-black dark:border-slate-600 px-4 py-3 print:px-4 print:py-3 align-middle" style={{width: '40%'}}>
-                      <div className="flex flex-col gap-2">
+                      <div className="flex flex-col gap-2 items-center text-center">
                         <div>
                           {isEditing ? (
-                            <div className="flex items-center gap-1.5 whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
                               <input type="text" value={editData.rmaNumber || ''} onChange={(e) => updateField('rmaNumber', e.target.value)} className="w-20 border-2 border-gray-400 dark:border-slate-500 rounded px-2 py-1 text-base font-black text-black dark:text-white" placeholder="RMA #" />
                               <span className="text-sm font-black text-black dark:text-white">{jobNoPrefix} JOB NO</span>
                               <input type="text" value={editData.jobNumber} onChange={(e) => updateField('jobNumber', e.target.value)} className="w-28 border-2 border-gray-400 dark:border-slate-500 rounded px-2 py-1 text-base font-black text-black dark:text-white" placeholder="Job #" />
                             </div>
                           ) : (
-                            <div className="text-base font-black text-black dark:text-white print:text-[18px] break-words leading-tight" style={{fontWeight: '900', letterSpacing: '0.5px'}}>
+                            <div className="text-base font-black text-black dark:text-white print:text-[18px] break-words leading-tight text-center" style={{fontWeight: '900', letterSpacing: '0.5px'}}>
                               {`${displayTraveler.rmaNumber || ''} ${jobNoPrefix} JOB NO ${displayTraveler.jobNumber || ''}`.trim()}
                             </div>
                           )}
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center gap-3">
                           <div className="border-2 border-black dark:border-slate-600 bg-white rounded" style={{padding: '2px 4px'}}>
                             {headerBarcode ? (
                               <img src={`data:image/png;base64,${headerBarcode}`} alt={`Barcode`} className="h-14" style={{ width: 'auto', maxWidth: '100%', imageRendering: 'pixelated' }} data-print-img="header-barcode" onLoad={handleHeaderBarcodeLoad} />
@@ -3882,11 +3887,6 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
                           )}
                         </div>
                       </div>
-                    </td>
-                    {/* Center: RMA ROUTING title */}
-                    <td className="border-r-2 border-black dark:border-slate-600 px-4 py-3 print:px-4 print:py-3 text-center align-middle overflow-hidden" style={{width: '30%'}}>
-                      <div className={`font-black text-black dark:text-white leading-tight ${isLongRoutingLabel ? 'text-lg print:text-[18px] tracking-tight' : 'text-2xl print:text-[26px] tracking-wider'}`} style={{fontWeight: '900'}}>{rmaLabel.toUpperCase()}</div>
-                      <div className="text-lg font-bold text-black dark:text-white print:text-[18px] tracking-widest">ROUTING</div>
                     </td>
                     {/* Right: To Stock / From Stock / Ship VIA */}
                     <td className="px-4 py-3 print:px-4 print:py-3 align-middle text-sm print:text-[13px]" style={{width: '30%'}}>
