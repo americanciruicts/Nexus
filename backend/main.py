@@ -507,6 +507,7 @@ async def lifespan(app: FastAPI):
                 'customer_revision_received': 'VARCHAR(50)',
                 'rma_notes': 'TEXT',
                 'wo_type_label': 'VARCHAR(50)',
+                'assy_type': 'VARCHAR(50)',
                 'rma_table_columns': 'TEXT',
             }
             import re as _re_ident

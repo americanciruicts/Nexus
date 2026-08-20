@@ -157,6 +157,20 @@ const TRAVELER_TYPE_LINES: Record<string, { name: string; line: string }> = {
   MODIFICATION: { name: 'Modification and Rework', line: 'Board modification and rework' },
 };
 
+// Assembly types selectable on the RMA (same/diff job) and Modification &
+// Rework routers. Fixed list requested by production — keep the wording exact,
+// it is what prints on the router.
+const ASSY_TYPE_OPTIONS = [
+  'PCB',
+  'PCBA',
+  'Multilevel PCBA with Final Assy',
+  'CBL Assy',
+  'Box Assy, Hardware Assy',
+  'PCBA with CBL Assy',
+  'PCBA with Box Assy',
+  'PCBA with CBL Assy & Box Assy',
+];
+
 // Shape returned by /travelers/by-job-number/... — a traveler to auto-fill from
 interface LookupTraveler {
   id?: number;
@@ -232,6 +246,7 @@ interface Traveler {
   customerRevisionReceived?: string;
   rmaNotes?: string;
   woTypeLabel?: string;
+  assyType?: string;
   rmaTableColumns?: RmaTableColumn[];
   rmaUnits?: RmaUnit[];
   // Group linking fields
@@ -625,6 +640,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
             customerRevisionReceived: String(data.customer_revision_received || ''),
             rmaNotes: String(data.rma_notes || ''),
             woTypeLabel: String(data.wo_type_label || ''),
+            assyType: String(data.assy_type || ''),
             rmaTableColumns: (() => {
               try {
                 return data.rma_table_columns ? JSON.parse(data.rma_table_columns as string) as RmaTableColumn[] : undefined;
@@ -1111,6 +1127,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
           rma_notes: editedTraveler.rmaNotes || '',
         } : {}),
         wo_type_label: editedTraveler.travelerType === 'MODIFICATION' ? (editedTraveler.woTypeLabel || 'Modification') : null,
+        assy_type: editedTraveler.assyType || null,
         rma_table_columns: editedTraveler.rmaTableColumns ? JSON.stringify(editedTraveler.rmaTableColumns) : null,
         rma_units: (editedTraveler.rmaUnits || []).filter(u => u.serial_number || u.customer_complaint || (u.custom_values && Object.values(u.custom_values).some(v => v))).map(u => ({
           unit_number: u.unit_number,
@@ -1593,6 +1610,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
         customerRevisionReceived: '',
         rmaNotes: '',
         woTypeLabel: type === 'MODIFICATION' ? 'Modification' : '',
+        assyType: '',
         rmaTableColumns: undefined,
         rmaUnits: Array.from({ length: 5 }, (_, i) => ({
           unit_number: i + 1,
@@ -1722,6 +1740,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
         customer_revision_received: editedTraveler.customerRevisionReceived || '',
         rma_notes: editedTraveler.rmaNotes || '',
         wo_type_label: editedTraveler.travelerType === 'MODIFICATION' ? (editedTraveler.woTypeLabel || 'Modification') : null,
+        assy_type: editedTraveler.assyType || null,
         rma_table_columns: editedTraveler.rmaTableColumns ? JSON.stringify(editedTraveler.rmaTableColumns) : null,
         rma_units: (editedTraveler.rmaUnits || []).filter(u => u.serial_number || u.customer_complaint || (u.custom_values && Object.values(u.custom_values).some(v => v))).map(u => ({
           unit_number: u.unit_number,
@@ -1907,6 +1926,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
         customer_revision_received: editedTraveler.customerRevisionReceived || '',
         rma_notes: editedTraveler.rmaNotes || '',
         wo_type_label: editedTraveler.travelerType === 'MODIFICATION' ? (editedTraveler.woTypeLabel || 'Modification') : null,
+        assy_type: editedTraveler.assyType || null,
         rma_table_columns: editedTraveler.rmaTableColumns ? JSON.stringify(editedTraveler.rmaTableColumns) : null,
         rma_units: (editedTraveler.rmaUnits || []).filter(u => u.serial_number || u.customer_complaint || (u.custom_values && Object.values(u.custom_values).some(v => v))).map(u => ({
           unit_number: u.unit_number,
@@ -3992,11 +4012,26 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
                     <td className="px-3 py-1.5 print:px-2 print:py-0.5 font-bold text-black dark:text-white whitespace-nowrap">Customer Revision sent:</td>
                     <td className="px-2 py-1.5 print:px-1 print:py-0.5 text-black dark:text-white">{isEditing ? <input type="text" value={editData.customerRevisionSent || ''} onChange={(e) => updateField('customerRevisionSent', e.target.value)} className="w-full border border-gray-300 dark:border-slate-600 rounded px-2 py-0.5 text-sm text-black dark:text-white" /> : (displayTraveler.customerRevisionSent || '-')}</td>
                   </tr>
-                  <tr>
+                  <tr className="border-b border-gray-300 dark:border-slate-600">
                     <td className="px-3 py-1.5 print:px-2 print:py-0.5 font-bold text-black dark:text-white whitespace-nowrap">Invoice Number:</td>
                     <td className="px-2 py-1.5 print:px-1 print:py-0.5 border-r border-gray-300 dark:border-slate-600 text-black dark:text-white">{isEditing ? <input type="text" value={editData.invoiceNumber || ''} onChange={(e) => updateField('invoiceNumber', e.target.value)} className="w-full border border-gray-300 dark:border-slate-600 rounded px-2 py-0.5 text-sm text-black dark:text-white" /> : (displayTraveler.invoiceNumber || <span className="inline-block min-w-[140px] border-b border-black dark:border-slate-400 align-bottom">&nbsp;</span>)}</td>
                     <td className="px-3 py-1.5 print:px-2 print:py-0.5 font-bold text-black dark:text-white whitespace-nowrap">Customer Revision Received:</td>
                     <td className="px-2 py-1.5 print:px-1 print:py-0.5 text-black dark:text-white">{isEditing ? <input type="text" value={editData.customerRevisionReceived || ''} onChange={(e) => updateField('customerRevisionReceived', e.target.value)} className="w-full border border-gray-300 dark:border-slate-600 rounded px-2 py-0.5 text-sm text-black dark:text-white" /> : (displayTraveler.customerRevisionReceived || '-')}</td>
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-1.5 print:px-2 print:py-0.5 font-bold text-black dark:text-white whitespace-nowrap">Assy Type:</td>
+                    <td className="px-2 py-1.5 print:px-1 print:py-0.5 text-black dark:text-white" colSpan={3}>{isEditing ? (
+                      <select
+                        value={editData.assyType || ''}
+                        onChange={(e) => updateField('assyType', e.target.value)}
+                        className="w-full max-w-[380px] border border-gray-300 dark:border-slate-600 rounded px-2 py-0.5 text-sm text-black dark:text-white bg-white dark:bg-slate-700"
+                      >
+                        <option value="">-- Select --</option>
+                        {ASSY_TYPE_OPTIONS.map(opt => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    ) : (displayTraveler.assyType || '-')}</td>
                   </tr>
                 </tbody>
               </table>

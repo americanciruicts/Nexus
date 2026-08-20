@@ -202,6 +202,9 @@ class Traveler(Base):
     # Display label shown before the work-order number on RMA routing headers
     # ("RMA", "Modification", "Rework", etc.). Operator-selectable per traveler.
     wo_type_label = Column(String(50))
+    # Assembly type of the returned/reworked product, chosen from a fixed
+    # dropdown on RMA (same/diff job) and Modification & Rework routers.
+    assy_type = Column(String(50))
     # JSON array of column definitions for the Unit Serial Number Tracking table.
     # Null means use the default 7-column layout. Each entry: {key, label, type}
     # where type is "standard" (backed by a RmaUnitTracking field) or "custom"

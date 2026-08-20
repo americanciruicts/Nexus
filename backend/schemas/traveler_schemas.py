@@ -148,6 +148,7 @@ class TravelerBase(BaseModel):
     customer_revision_received: Optional[str] = Field(None, max_length=50)
     rma_notes: Optional[str] = None
     wo_type_label: Optional[str] = Field(None, max_length=50)
+    assy_type: Optional[str] = Field(None, max_length=50)
     rma_table_columns: Optional[str] = None
 
 class TravelerCreate(TravelerBase):
@@ -200,6 +201,7 @@ class TravelerUpdate(BaseModel):
     customer_revision_received: Optional[str] = Field(None, max_length=50)
     rma_notes: Optional[str] = None
     wo_type_label: Optional[str] = Field(None, max_length=50)
+    assy_type: Optional[str] = Field(None, max_length=50)
     rma_table_columns: Optional[str] = None
 
 class TravelerGroupMember(BaseModel):
