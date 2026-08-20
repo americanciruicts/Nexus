@@ -484,6 +484,7 @@ async def create_traveler(
             rma_notes=traveler_data.rma_notes,
             wo_type_label=traveler_data.wo_type_label,
             assy_type=traveler_data.assy_type,
+            include_sn_table=(traveler_data.include_sn_table if traveler_data.include_sn_table is not None else True),
             rma_table_columns=traveler_data.rma_table_columns,
         )
 
@@ -2031,6 +2032,9 @@ async def update_traveler(
     # Persist the operator-selected assembly type (RMA + Modification routers)
     if traveler_data.assy_type is not None:
         traveler.assy_type = traveler_data.assy_type
+    # Whether the Unit Serial Number Tracking table is part of this router
+    if traveler_data.include_sn_table is not None:
+        traveler.include_sn_table = traveler_data.include_sn_table
     # Persist the user-customized column layout for the Unit Serial Number table
     if traveler_data.rma_table_columns is not None:
         traveler.rma_table_columns = traveler_data.rma_table_columns

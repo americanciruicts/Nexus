@@ -149,6 +149,7 @@ class TravelerBase(BaseModel):
     rma_notes: Optional[str] = None
     wo_type_label: Optional[str] = Field(None, max_length=50)
     assy_type: Optional[str] = Field(None, max_length=50)
+    include_sn_table: Optional[bool] = None
     rma_table_columns: Optional[str] = None
 
 class TravelerCreate(TravelerBase):
@@ -202,6 +203,7 @@ class TravelerUpdate(BaseModel):
     rma_notes: Optional[str] = None
     wo_type_label: Optional[str] = Field(None, max_length=50)
     assy_type: Optional[str] = Field(None, max_length=50)
+    include_sn_table: Optional[bool] = None
     rma_table_columns: Optional[str] = None
 
 class TravelerGroupMember(BaseModel):

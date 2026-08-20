@@ -247,6 +247,7 @@ interface Traveler {
   rmaNotes?: string;
   woTypeLabel?: string;
   assyType?: string;
+  includeSnTable?: boolean;
   rmaTableColumns?: RmaTableColumn[];
   rmaUnits?: RmaUnit[];
   // Group linking fields
@@ -641,6 +642,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
             rmaNotes: String(data.rma_notes || ''),
             woTypeLabel: String(data.wo_type_label || ''),
             assyType: String(data.assy_type || ''),
+            includeSnTable: data.include_sn_table !== false,
             rmaTableColumns: (() => {
               try {
                 return data.rma_table_columns ? JSON.parse(data.rma_table_columns as string) as RmaTableColumn[] : undefined;
@@ -1128,6 +1130,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
         } : {}),
         wo_type_label: editedTraveler.travelerType === 'MODIFICATION' ? (editedTraveler.woTypeLabel || 'Modification') : null,
         assy_type: editedTraveler.assyType || null,
+        include_sn_table: editedTraveler.includeSnTable !== false,
         rma_table_columns: editedTraveler.rmaTableColumns ? JSON.stringify(editedTraveler.rmaTableColumns) : null,
         rma_units: (editedTraveler.rmaUnits || []).filter(u => u.serial_number || u.customer_complaint || (u.custom_values && Object.values(u.custom_values).some(v => v))).map(u => ({
           unit_number: u.unit_number,
@@ -1186,7 +1189,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
     }
   };
 
-  const updateField = (field: keyof Traveler, value: string | number) => {
+  const updateField = (field: keyof Traveler, value: string | number | boolean) => {
     if (!editedTraveler) return;
     setEditedTraveler({ ...editedTraveler, [field]: value });
   };
@@ -1611,6 +1614,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
         rmaNotes: '',
         woTypeLabel: type === 'MODIFICATION' ? 'Modification' : '',
         assyType: '',
+        includeSnTable: true,
         rmaTableColumns: undefined,
         rmaUnits: Array.from({ length: 5 }, (_, i) => ({
           unit_number: i + 1,
@@ -1741,6 +1745,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
         rma_notes: editedTraveler.rmaNotes || '',
         wo_type_label: editedTraveler.travelerType === 'MODIFICATION' ? (editedTraveler.woTypeLabel || 'Modification') : null,
         assy_type: editedTraveler.assyType || null,
+        include_sn_table: editedTraveler.includeSnTable !== false,
         rma_table_columns: editedTraveler.rmaTableColumns ? JSON.stringify(editedTraveler.rmaTableColumns) : null,
         rma_units: (editedTraveler.rmaUnits || []).filter(u => u.serial_number || u.customer_complaint || (u.custom_values && Object.values(u.custom_values).some(v => v))).map(u => ({
           unit_number: u.unit_number,
@@ -1927,6 +1932,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
         rma_notes: editedTraveler.rmaNotes || '',
         wo_type_label: editedTraveler.travelerType === 'MODIFICATION' ? (editedTraveler.woTypeLabel || 'Modification') : null,
         assy_type: editedTraveler.assyType || null,
+        include_sn_table: editedTraveler.includeSnTable !== false,
         rma_table_columns: editedTraveler.rmaTableColumns ? JSON.stringify(editedTraveler.rmaTableColumns) : null,
         rma_units: (editedTraveler.rmaUnits || []).filter(u => u.serial_number || u.customer_complaint || (u.custom_values && Object.values(u.custom_values).some(v => v))).map(u => ({
           unit_number: u.unit_number,
@@ -4794,8 +4800,12 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
             </div>
             )}
 
-            {/* Unit Serial Number Tracking Table (all RMA types) */}
-            {(() => {
+            {/* Unit Serial Number Tracking Table (all RMA types). Operators can
+                remove it from a router entirely; removing only clears the flag,
+                the unit rows stay on disk so restoring brings them back. When
+                it is removed the section is gone from view and print, and edit
+                mode shows a bar to put it back. */}
+            {(displayTraveler.includeSnTable !== false) ? (() => {
               const tableColumns: RmaTableColumn[] = (editedTraveler?.rmaTableColumns || displayTraveler.rmaTableColumns || DEFAULT_RMA_TABLE_COLUMNS);
               const cellValue = (unit: RmaUnit, col: RmaTableColumn): string => {
                 if (col.type === 'standard') {
@@ -4824,6 +4834,9 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
                         <PlusIcon className="h-4 w-4" /><span>Add Unit</span>
                       </button>
                     )}
+                    <button onClick={() => updateField('includeSnTable', false)} className="flex items-center gap-1 px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm" title="Remove this table from the router. Unit data is kept and the table can be restored.">
+                      <TrashIcon className="h-4 w-4" /><span>Remove Table</span>
+                    </button>
                   </div>
                 )}
               </div>
@@ -4910,7 +4923,16 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
               </div>
             </div>
               );
-            })()}
+            })() : (isEditing ? (
+              <div className="border-b-2 border-black dark:border-slate-600 no-print">
+                <div className="bg-red-100 dark:bg-red-900/30 px-3 py-2 flex justify-between items-center gap-2 flex-wrap">
+                  <span className="font-bold text-sm text-red-900 dark:text-red-200">UNIT SERIAL NUMBER TRACKING &mdash; removed from this router</span>
+                  <button onClick={() => updateField('includeSnTable', true)} className="flex items-center gap-1 px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm" title="Put the table back. Existing unit data is still there.">
+                    <PlusIcon className="h-4 w-4" /><span>Restore Table</span>
+                  </button>
+                </div>
+              </div>
+            ) : null)}
           </div>
           )}
 

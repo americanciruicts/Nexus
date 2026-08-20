@@ -229,17 +229,6 @@ function TravelersPage() {
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'All Statuses');
   const [viewFilter, setViewFilter] = useState<'active' | 'drafts' | 'all'>((searchParams.get('view') as 'active' | 'drafts' | 'all') || 'all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
-  // Per-user default: Abhi lands on the RMA travelers view (All) each time he
-  // opens the page. Applied once on load; he can still change the filter after.
-  const abhiDefaultRef = useRef(false);
-  useEffect(() => {
-    if (abhiDefaultRef.current) return;
-    if ((user?.username || '').toLowerCase() === 'abhi@americancircuits.com') {
-      abhiDefaultRef.current = true;
-      setTypeFilter('RMA');
-      setViewFilter('all');
-    }
-  }, [user]);
   const [travelers, setTravelers] = useState<TravelerItem[]>(() => readLiveCache<TravelerItem[]>(TRAVELERS_CACHE_KEY) ?? []);
   // Don't block on a skeleton if we already have last-known data to show.
   const [travelersLoading, setTravelersLoading] = useState(() => (readLiveCache<TravelerItem[]>(TRAVELERS_CACHE_KEY) ?? []).length === 0);

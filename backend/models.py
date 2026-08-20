@@ -205,6 +205,10 @@ class Traveler(Base):
     # Assembly type of the returned/reworked product, chosen from a fixed
     # dropdown on RMA (same/diff job) and Modification & Rework routers.
     assy_type = Column(String(50))
+    # Whether the Unit Serial Number Tracking table is part of this RMA /
+    # Modification router. NULL means yes — the table predates the flag, so
+    # only an explicit False hides it. Hiding keeps the unit rows on disk.
+    include_sn_table = Column(Boolean, default=True)
     # JSON array of column definitions for the Unit Serial Number Tracking table.
     # Null means use the default 7-column layout. Each entry: {key, label, type}
     # where type is "standard" (backed by a RmaUnitTracking field) or "custom"
