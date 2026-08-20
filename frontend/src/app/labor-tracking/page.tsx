@@ -5,6 +5,7 @@ import Layout from '@/components/layout/Layout';
 import Modal from '@/components/Modal';
 import { ClockIcon, UserIcon, DocumentTextIcon, PlayIcon, StopIcon, PencilIcon, TrashIcon, EyeIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '@/context/AuthContext';
+import { prefersTableView } from '@/lib/viewPrefs';
 import { formatHoursDualCompact, formatHoursDual, formatSecondsCompact } from '@/utils/timeHelpers';
 import Autocomplete, { AutocompleteHandle } from '@/components/ui/Autocomplete';
 import { toast } from 'sonner';
@@ -88,6 +89,9 @@ function SortableTh({
 
 export default function LaborTrackingPage() {
   const { user } = useAuth();
+  // Card grid for everyone, dense table for the users listed in viewPrefs.
+  // Both renderings below read the same filtered/paginated entries.
+  const useTableView = prefersTableView(user?.username);
   const [laborEntries, setLaborEntries] = useState<LaborEntry[]>(() => readLiveCache<LaborEntry[]>(LABOR_CACHE_KEY) ?? []);
   const lastLaborJsonRef = useRef<string>('');
   const [selectedEntries, setSelectedEntries] = useState<number[]>([]);
@@ -2415,8 +2419,8 @@ export default function LaborTrackingPage() {
               </div>
             </div>
 
-            {/* Card View - shown on all screen sizes */}
-            <div className="block overflow-hidden">
+            {/* Card View - the default for everyone else */}
+            <div className={`${useTableView ? 'hidden' : 'block'} overflow-hidden`}>
               {isLoading ? (
                 <div className="p-4"><div className="space-y-3">{Array.from({length:5}).map((_,i)=><div key={i} className="skeleton h-12 w-full" />)}</div></div>
               ) : filteredEntries.length === 0 ? (
@@ -2578,8 +2582,8 @@ export default function LaborTrackingPage() {
               )}
             </div>
 
-            {/* Desktop Table View — hidden, replaced by card view above */}
-            <div className="hidden">
+            {/* Dense table view — dashboard "Traveler Status & Progress" look */}
+            <div className={useTableView ? 'block' : 'hidden'}>
               <div>
               {isLoading ? (
                 <div className="p-4"><div className="space-y-3">{Array.from({length:5}).map((_,i)=><div key={i} className="skeleton h-12 w-full" />)}</div></div>

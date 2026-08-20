@@ -26,6 +26,7 @@ import { DEPARTMENT_BAR_COLORS } from '@/data/workCenters';
 import { PageHeaderSkeleton, TableSkeleton } from '@/components/ui/LoadingSkeleton';
 import { readLiveCache, writeLiveCache, notifyDataUpdated, LIVE_REFRESH_MS } from '@/lib/liveCache';
 import { fetchAllTravelerRows } from '@/lib/travelersApi';
+import { prefersTableView } from '@/lib/viewPrefs';
 
 const TRAVELERS_CACHE_KEY = 'nexus_travelers_v1';
 
@@ -229,6 +230,9 @@ function TravelersPage() {
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'All Statuses');
   const [viewFilter, setViewFilter] = useState<'active' | 'drafts' | 'all'>((searchParams.get('view') as 'active' | 'drafts' | 'all') || 'all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  // Card grid for everyone, dense table for the users listed in viewPrefs.
+  // Both renderings below read the same paginated/sorted state.
+  const useTableView = prefersTableView(user?.username);
   const [travelers, setTravelers] = useState<TravelerItem[]>(() => readLiveCache<TravelerItem[]>(TRAVELERS_CACHE_KEY) ?? []);
   // Don't block on a skeleton if we already have last-known data to show.
   const [travelersLoading, setTravelersLoading] = useState(() => (readLiveCache<TravelerItem[]>(TRAVELERS_CACHE_KEY) ?? []).length === 0);
@@ -908,8 +912,8 @@ function TravelersPage() {
           ) : (
             <>
 
-            {/* Desktop Table View — hidden, replaced by card grid below */}
-            <div className="hidden w-full relative overflow-x-auto">
+            {/* Dense table view — dashboard "Traveler Status & Progress" look */}
+            <div className={`${useTableView ? 'block' : 'hidden'} w-full relative overflow-x-auto`}>
               <div className="absolute top-0 left-0 right-0 h-14 overflow-hidden pointer-events-none z-20">
                 <div className="absolute top-0 right-8 w-20 h-20 bg-white/10 rounded-full -translate-y-1/2" />
                 <div className="absolute top-2 left-12 w-12 h-12 bg-white/10 rounded-full" />
@@ -1195,8 +1199,8 @@ function TravelersPage() {
               </table>
             </div>
 
-            {/* Card View - shown on all screen sizes (responsive grid) */}
-            <div className="block w-full">
+            {/* Card View - the default for everyone else */}
+            <div className={`${useTableView ? 'hidden' : 'block'} w-full`}>
               <div className="p-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 {paginatedTravelers.map((traveler) => (
                   <div key={traveler.dbId} className={`border-2 rounded-lg shadow-sm transition-colors ${
