@@ -2479,9 +2479,40 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
           .rma-landscape-print table th { padding: 3px 5px !important; }
           .rma-landscape-print .bg-gray-100 { padding: 4px 8px !important; }
           .rma-landscape-print .bg-gray-50 { padding: 2px 6px !important; }
-          /* RMA: Keep header + routing steps on page 1, unit tracking on page 2 */
+          /* RMA/Modification page plan (requested by production):
+               page 1 = the RMA header block (banner + details) and nothing else
+               page 2+ = ROUTING heading + routing table, then COMMENTS & NOTES
+                         immediately after the table, then UNIT SERIAL NUMBER
+                         TRACKING immediately after that — no blank filler
+                         between any of them.
+             The routing section carries the forced break so its heading travels
+             with the table instead of being stranded under the header. Comments
+             and unit tracking must NOT force their own breaks any more (they
+             used to, which is exactly the white space being removed); they just
+             flow, and only break when they genuinely run off the page. */
           .rma-landscape-print .rma-page1-content { page-break-inside: avoid !important; break-inside: avoid !important; }
-          .rma-landscape-print .rma-page2-content { page-break-before: always !important; break-before: page !important; }
+          .rma-landscape-print .routing-section {
+            page-break-before: always !important; break-before: page !important;
+          }
+          .rma-landscape-print .rma-page2-content {
+            page-break-before: auto !important; break-before: auto !important;
+          }
+          /* Every block in here hugs whatever precedes it — comments to the end
+             of the routing table, the unit table to the end of the comments —
+             rather than starting a fresh page. "avoid" is only a hint, so a table
+             that genuinely does not fit still breaks naturally.
+             Not :first-child: with no comments that box is print:hidden but
+             still matches :first-child, which would leave the unit table
+             unhinted. */
+          .rma-landscape-print .rma-page2-content > div {
+            page-break-before: avoid !important; break-before: avoid !important;
+            margin-top: 0 !important;
+          }
+          /* No tall empty comment box on RMA — the box is only as deep as the
+             text in it, so the unit table starts right below the comment. */
+          .rma-landscape-print .rma-page2-content .bg-purple-50 {
+            min-height: 0 !important;
+          }
           /* RMA barcode in print — keep bars crisp for laser scanners.
              Do NOT force height/width: native size from backend is print-grade (300dpi);
              CSS scaling introduces anti-aliasing that breaks scanning. */
@@ -4692,102 +4723,21 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
             </div>
           </div>
 
-          {/* Labor Hours Toggle - Edit Mode Only - NO PRINT - Hidden for RMA types */}
-          {isEditing && !isRmaType(displayTraveler.travelerType) && (
-            <div className="border-b-2 border-black dark:border-slate-600 no-print">
-              <div className="bg-blue-200 dark:bg-blue-900/50 print:!bg-blue-200 px-3 py-2">
-                <h2 className="font-bold text-sm text-blue-900 dark:text-blue-200 print:!text-black">TRAVELER OPTIONS</h2>
-              </div>
-              <div className="bg-blue-50 dark:bg-slate-800 p-4">
-                <div className="flex items-center space-x-3 p-3 bg-white dark:bg-slate-800 rounded border-2 border-blue-300">
-                  <input
-                    type="checkbox"
-                    id="editIncludeLaborHours"
-                    checked={editData.includeLaborHours}
-                    onChange={(e) => {
-                      const newValue = e.target.checked;
-                      setEditedTraveler({ ...editData, includeLaborHours: newValue });
-                      if (newValue) {
-                        toast.success('Labor Hours Table will be included in this traveler! The labor tracking section will appear at the end of the traveler document when printed.');
-                      } else {
-                        toast.warning('Labor Hours Table will be removed from this traveler! The labor tracking section will NOT appear in the printed document.');
-                      }
-                    }}
-                    className="w-5 h-5 text-blue-600 border border-gray-300 dark:border-slate-600 rounded cursor-pointer"
-                  />
-                  <label htmlFor="editIncludeLaborHours" className="flex-1 cursor-pointer">
-                    <div>
-                      <p className="font-semibold text-gray-900 dark:text-slate-100">Include Labor Hours Table</p>
-                      <p className="text-xs text-gray-500 dark:text-slate-400">
-                        {editData.includeLaborHours ? '✓ Labor tracking enabled - will print on second page' : 'Add labor tracking section to traveler'}
-                      </p>
-                    </div>
-                  </label>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Comments Section - for non-RMA types shown here; for RMA shown on page 2.
-              When there are no comments this whole block (plus the blank writing
-              space below) is hidden from print so the printout doesn't end on an
-              otherwise-empty trailing page — it stops at the From/To Stock / Ship Via row. */}
-          {!isRmaType(displayTraveler.travelerType) && (
-          <div className={`border-b-2 border-black dark:border-slate-600 ${((isEditing ? editData.comments : displayTraveler.comments) || '').trim() ? '' : 'print:hidden'}`}>
-            <div className="bg-purple-200 dark:bg-purple-900/50 print:!bg-purple-200 px-3 py-2 print:px-1 print:py-0">
-              <h2 className="font-bold text-sm text-purple-900 dark:text-purple-200 print:!text-black print:text-[9px] print-section-title">COMMENTS & NOTES</h2>
-            </div>
-            <div className="bg-purple-50 dark:bg-slate-800 p-3 min-h-[60px] text-sm print:p-1 print:min-h-[40px] print:text-[8px]">
-              {isEditing ? (
-                <>
-                  <textarea
-                    value={editData.comments}
-                    onChange={(e) => updateField('comments', e.target.value)}
-                    className="w-full p-2 border border-gray-300 dark:border-slate-600 rounded min-h-[60px] text-sm screen-only"
-                    placeholder="Enter comments..."
-                  />
-                  <div className="print-only whitespace-pre-wrap text-sm print:text-[8px]">{editData.comments || <span className="text-gray-400 dark:text-slate-500 italic">No comments</span>}</div>
-                </>
-              ) : (
-                <div className="whitespace-pre-wrap text-sm print:text-[8px]">{displayTraveler.comments || <span className="text-gray-400 dark:text-slate-500 italic">No comments</span>}</div>
-              )}
-            </div>
-          </div>
-          )}
-
-          {/* Additional Instructions/Comments Space - not for RMA types.
-              Hidden from print when there are no comments (see note above) so this
-              near-full-page blank box doesn't create an empty trailing page. */}
-          {!isRmaType(displayTraveler.travelerType) && (
-          <div className={`border-b-2 border-black dark:border-slate-600 ${((isEditing ? editData.comments : displayTraveler.comments) || '').trim() ? '' : 'print:hidden'}`}>
-            <div className="bg-gray-50 dark:bg-slate-900 p-3 min-h-[120px] print:min-h-[750px] text-sm print:p-1">
-              <div className="text-gray-400 dark:text-slate-500 text-xs print:text-[8px]">Additional Instructions/Comments:</div>
-            </div>
-          </div>
-          )}
-
-          {/* Documents (uploaded files render inline on screen AND print) +
-              Communication Log (screen only). travelerId is the numeric DB id
-              (displayTraveler.id is the job number, not the DB id). */}
-          {displayTraveler?.travelerId ? (
-            <>
-              <JobDocuments travelerId={displayTraveler.travelerId} />
-              <CommunicationLogSection travelerId={displayTraveler.travelerId} />
-            </>
-          ) : null}
-
-          {/* RMA Page 2: Comments + Unit Tracking */}
+          {/* RMA/Modification: COMMENTS & NOTES then UNIT SERIAL NUMBER TRACKING,
+              deliberately rendered immediately after the routing section (and
+              ahead of Documents) so that on paper they butt straight up against
+              the end of the routing table with nothing in between. */}
           {isRmaType(displayTraveler.travelerType) && (
           <div className="rma-page2-content">
-            {/* Comments & Notes for RMA - on page 2. Same rule as the non-RMA
-                block above: with no comments the tall (480px print) box is
-                dropped from print, so page 2 starts at the unit tracking table
-                instead of a half page of empty purple. Screen view unchanged. */}
+            {/* With no comments the box is dropped from print entirely, so the
+                unit tracking table follows the routing table directly. When
+                there IS a comment the box is only as tall as its text — no
+                blank filler below it. Screen view unchanged. */}
             <div className={`border-b-2 border-black dark:border-slate-600 ${((isEditing ? editData.comments : displayTraveler.comments) || '').trim() ? '' : 'print:hidden'}`}>
               <div className="bg-purple-200 dark:bg-purple-900/50 print:!bg-purple-200 px-3 py-2 print:px-1 print:py-0">
                 <h2 className="font-bold text-sm text-purple-900 dark:text-purple-200 print:!text-black print:text-[9px]">COMMENTS & NOTES</h2>
               </div>
-              <div className="bg-purple-50 dark:bg-slate-800 p-3 min-h-[40px] text-sm print:p-1 print:min-h-[480px] print:text-[8px]">
+              <div className="bg-purple-50 dark:bg-slate-800 p-3 min-h-[40px] text-sm print:p-1 print:text-[8px]">
                 {isEditing ? (
                   <>
                     <textarea value={editData.comments} onChange={(e) => updateField('comments', e.target.value)} className="w-full p-2 border border-gray-300 dark:border-slate-600 rounded min-h-[60px] text-sm screen-only" placeholder="Enter comments..." />
@@ -4963,6 +4913,91 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
             })()}
           </div>
           )}
+
+          {/* Labor Hours Toggle - Edit Mode Only - NO PRINT - Hidden for RMA types */}
+          {isEditing && !isRmaType(displayTraveler.travelerType) && (
+            <div className="border-b-2 border-black dark:border-slate-600 no-print">
+              <div className="bg-blue-200 dark:bg-blue-900/50 print:!bg-blue-200 px-3 py-2">
+                <h2 className="font-bold text-sm text-blue-900 dark:text-blue-200 print:!text-black">TRAVELER OPTIONS</h2>
+              </div>
+              <div className="bg-blue-50 dark:bg-slate-800 p-4">
+                <div className="flex items-center space-x-3 p-3 bg-white dark:bg-slate-800 rounded border-2 border-blue-300">
+                  <input
+                    type="checkbox"
+                    id="editIncludeLaborHours"
+                    checked={editData.includeLaborHours}
+                    onChange={(e) => {
+                      const newValue = e.target.checked;
+                      setEditedTraveler({ ...editData, includeLaborHours: newValue });
+                      if (newValue) {
+                        toast.success('Labor Hours Table will be included in this traveler! The labor tracking section will appear at the end of the traveler document when printed.');
+                      } else {
+                        toast.warning('Labor Hours Table will be removed from this traveler! The labor tracking section will NOT appear in the printed document.');
+                      }
+                    }}
+                    className="w-5 h-5 text-blue-600 border border-gray-300 dark:border-slate-600 rounded cursor-pointer"
+                  />
+                  <label htmlFor="editIncludeLaborHours" className="flex-1 cursor-pointer">
+                    <div>
+                      <p className="font-semibold text-gray-900 dark:text-slate-100">Include Labor Hours Table</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">
+                        {editData.includeLaborHours ? '✓ Labor tracking enabled - will print on second page' : 'Add labor tracking section to traveler'}
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Comments Section - for non-RMA types shown here; for RMA shown on page 2.
+              When there are no comments this whole block (plus the blank writing
+              space below) is hidden from print so the printout doesn't end on an
+              otherwise-empty trailing page — it stops at the From/To Stock / Ship Via row. */}
+          {!isRmaType(displayTraveler.travelerType) && (
+          <div className={`border-b-2 border-black dark:border-slate-600 ${((isEditing ? editData.comments : displayTraveler.comments) || '').trim() ? '' : 'print:hidden'}`}>
+            <div className="bg-purple-200 dark:bg-purple-900/50 print:!bg-purple-200 px-3 py-2 print:px-1 print:py-0">
+              <h2 className="font-bold text-sm text-purple-900 dark:text-purple-200 print:!text-black print:text-[9px] print-section-title">COMMENTS & NOTES</h2>
+            </div>
+            <div className="bg-purple-50 dark:bg-slate-800 p-3 min-h-[60px] text-sm print:p-1 print:min-h-[40px] print:text-[8px]">
+              {isEditing ? (
+                <>
+                  <textarea
+                    value={editData.comments}
+                    onChange={(e) => updateField('comments', e.target.value)}
+                    className="w-full p-2 border border-gray-300 dark:border-slate-600 rounded min-h-[60px] text-sm screen-only"
+                    placeholder="Enter comments..."
+                  />
+                  <div className="print-only whitespace-pre-wrap text-sm print:text-[8px]">{editData.comments || <span className="text-gray-400 dark:text-slate-500 italic">No comments</span>}</div>
+                </>
+              ) : (
+                <div className="whitespace-pre-wrap text-sm print:text-[8px]">{displayTraveler.comments || <span className="text-gray-400 dark:text-slate-500 italic">No comments</span>}</div>
+              )}
+            </div>
+          </div>
+          )}
+
+          {/* Additional Instructions/Comments Space - not for RMA types.
+              Hidden from print when there are no comments (see note above) so this
+              near-full-page blank box doesn't create an empty trailing page. */}
+          {!isRmaType(displayTraveler.travelerType) && (
+          <div className={`border-b-2 border-black dark:border-slate-600 ${((isEditing ? editData.comments : displayTraveler.comments) || '').trim() ? '' : 'print:hidden'}`}>
+            <div className="bg-gray-50 dark:bg-slate-900 p-3 min-h-[120px] print:min-h-[750px] text-sm print:p-1">
+              <div className="text-gray-400 dark:text-slate-500 text-xs print:text-[8px]">Additional Instructions/Comments:</div>
+            </div>
+          </div>
+          )}
+
+          {/* Documents (uploaded files render inline on screen AND print) +
+              Communication Log (screen only). travelerId is the numeric DB id
+              (displayTraveler.id is the job number, not the DB id). */}
+          {displayTraveler?.travelerId ? (
+            <>
+              <JobDocuments travelerId={displayTraveler.travelerId} />
+              <CommunicationLogSection travelerId={displayTraveler.travelerId} />
+            </>
+          ) : null}
+
 
           {/* Labor Hours Section - Second Page (Page Break Before) - Show if includeLaborHours is true, hidden for RMA types */}
           {displayTraveler.includeLaborHours && !isRmaType(displayTraveler.travelerType) && (
