@@ -2488,31 +2488,38 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
           /* RMA/Modification page plan (requested by production):
                page 1 = the RMA header block (banner + details) and nothing else
                page 2+ = ROUTING heading + routing table, then COMMENTS & NOTES
-                         immediately after the table, then UNIT SERIAL NUMBER
-                         TRACKING immediately after that — no blank filler
-                         between any of them.
+                         starting on the very next line after the routing table,
+                         then UNIT SERIAL NUMBER TRACKING right after that.
              The routing section carries the forced break so its heading travels
-             with the table instead of being stranded under the header. Comments
-             and unit tracking must NOT force their own breaks any more (they
-             used to, which is exactly the white space being removed); they just
-             flow, and only break when they genuinely run off the page. */
+             with the table instead of being stranded under the header. */
           .rma-landscape-print .rma-page1-content { page-break-inside: avoid !important; break-inside: avoid !important; }
           .rma-landscape-print .routing-section {
             page-break-before: always !important; break-before: page !important;
           }
-          .rma-landscape-print .rma-page2-content {
+          /* THE white-space fix. The blanket "div { break-inside: avoid }" rule
+             further down pins each of these wrappers — and the unit table — to a
+             single page. Comments plus the unit table are far taller than the
+             space left under the routing table, so the browser gave up and threw
+             the whole group onto a fresh page, leaving the routing page half
+             empty. Chrome ignores "break-before: avoid", so hinting was useless;
+             the group has to be genuinely fragmentable instead. Everything in
+             here opts back out to auto so it starts on the line after the
+             routing table and simply continues onto the next page. Individual
+             rows still stay whole — only whole rows may split off. */
+          .rma-landscape-print .rma-page2-content,
+          .rma-landscape-print .rma-page2-content div,
+          .rma-landscape-print .rma-page2-content table,
+          .rma-landscape-print .rma-page2-content tbody {
+            page-break-inside: auto !important; break-inside: auto !important;
             page-break-before: auto !important; break-before: auto !important;
-          }
-          /* Every block in here hugs whatever precedes it — comments to the end
-             of the routing table, the unit table to the end of the comments —
-             rather than starting a fresh page. "avoid" is only a hint, so a table
-             that genuinely does not fit still breaks naturally.
-             Not :first-child: with no comments that box is print:hidden but
-             still matches :first-child, which would leave the unit table
-             unhinted. */
-          .rma-landscape-print .rma-page2-content > div {
-            page-break-before: avoid !important; break-before: avoid !important;
             margin-top: 0 !important;
+          }
+          .rma-landscape-print .rma-page2-content tr {
+            page-break-inside: avoid !important; break-inside: avoid !important;
+          }
+          /* When the unit table does spill over, repeat its column headings. */
+          .rma-landscape-print .rma-page2-content thead {
+            display: table-header-group !important;
           }
           /* No tall empty comment box on RMA — the box is only as deep as the
              text in it, so the unit table starts right below the comment. */
