@@ -484,6 +484,39 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"Warning: Could not add WORK_CENTER_* enum values: {e}")
 
+    # Auto-migrate: widen columns whose declared length has grown. The add-column
+    # pass below only creates missing columns, so an existing VARCHAR stays at its
+    # old width until it is altered explicitly. Widening only — never narrowing,
+    # which would truncate live data.
+    try:
+        from sqlalchemy import text as text_widen, inspect as sa_inspect_widen
+        widen_targets = [
+            # (table, column, new length) — customer_code holds 200 characters
+            # excluding spaces, so the column is deliberately wider than 200.
+            ('travelers', 'customer_code', 500),
+            ('parts', 'customer_code', 500),
+            ('work_orders', 'customer_code', 500),
+        ]
+        insp_widen = sa_inspect_widen(engine)
+        existing_tables = set(insp_widen.get_table_names())
+        with engine.connect() as conn:
+            for table_name, col_name, new_len in widen_targets:
+                if table_name not in existing_tables:
+                    continue
+                col = next((c for c in insp_widen.get_columns(table_name) if c['name'] == col_name), None)
+                if col is None:
+                    continue
+                current_len = getattr(col['type'], 'length', None)
+                if current_len is None or current_len >= new_len:
+                    continue
+                conn.execute(text_widen(
+                    f'ALTER TABLE {table_name} ALTER COLUMN {col_name} TYPE VARCHAR({new_len})'
+                ))
+                print(f"Widened {table_name}.{col_name} to VARCHAR({new_len})")
+            conn.commit()
+    except Exception as e:
+        print(f"Warning: Could not widen columns: {e}")
+
     # Auto-migrate: add RMA-specific columns to travelers table and create rma_unit_tracking table
     try:
         from sqlalchemy import text, inspect as sa_inspect_rma

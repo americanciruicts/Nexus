@@ -8,6 +8,7 @@ import { getWorkCentersByType, WorkCenterItem, DEPARTMENT_BAR_COLORS, DEPARTMENT
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import { API_BASE_URL } from '@/config/api';
+import { acceptCustomerCode } from '@/lib/customerCode';
 import { TravelerType } from '@/types';
 import TravelerFlowBar from '@/components/TravelerFlowBar';
 import TravelerGroupBadge from '@/components/TravelerGroupBadge';
@@ -3779,7 +3780,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
                 <div className="bg-blue-50 border-l-4 border-blue-600 p-2 rounded">
                   <div className="font-bold text-blue-800 mb-1 text-sm">Customer Information</div>
                   <div className="space-y-1">
-                    <div className="flex justify-between"><span className="font-semibold">Code:</span> <span className="text-black dark:text-white">{isEditing ? <input type="text" value={editData.customerCode} onChange={(e) => updateField('customerCode', e.target.value)} className="w-32 border border-gray-300 dark:border-slate-600 rounded px-1 text-black dark:text-white"/> : (displayTraveler.customerCode || '-')}</span></div>
+                    <div className="flex justify-between"><span className="font-semibold">Code:</span> <span className="text-black dark:text-white">{isEditing ? <input type="text" value={editData.customerCode} onChange={(e) => { if (acceptCustomerCode(e.target.value, editData.customerCode || '')) updateField('customerCode', e.target.value); }} className="w-32 border border-gray-300 dark:border-slate-600 rounded px-1 text-black dark:text-white"/> : (displayTraveler.customerCode || '-')}</span></div>
                   </div>
                 </div>
 
@@ -3835,7 +3836,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
                     <input
                       type="text"
                       value={editData.customerCode}
-                      onChange={(e) => updateField('customerCode', e.target.value)}
+                      onChange={(e) => { if (acceptCustomerCode(e.target.value, editData.customerCode || '')) updateField('customerCode', e.target.value); }}
                       className="flex-1 border border-gray-300 dark:border-slate-600 rounded px-1 py-0.5 text-sm max-w-full text-black dark:text-white"
                     />
                   ) : (
@@ -4215,7 +4216,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
                 <tbody>
                   <tr className="border-b border-gray-300 dark:border-slate-600">
                     <td className="px-3 py-1.5 print:px-2 print:py-0.5 font-bold text-black dark:text-white whitespace-nowrap">Customer Code:</td>
-                    <td className="px-2 py-1.5 print:px-1 print:py-0.5 border-r border-gray-300 dark:border-slate-600 text-black dark:text-white">{isEditing ? <input type="text" value={editData.customerCode} onChange={(e) => updateField('customerCode', e.target.value)} className="w-full border border-gray-300 dark:border-slate-600 rounded px-2 py-0.5 text-sm text-black dark:text-white" /> : (displayTraveler.customerCode || '-')}</td>
+                    <td className="px-2 py-1.5 print:px-1 print:py-0.5 border-r border-gray-300 dark:border-slate-600 text-black dark:text-white">{isEditing ? <input type="text" value={editData.customerCode} onChange={(e) => { if (acceptCustomerCode(e.target.value, editData.customerCode || '')) updateField('customerCode', e.target.value); }} className="w-full border border-gray-300 dark:border-slate-600 rounded px-2 py-0.5 text-sm text-black dark:text-white" /> : (displayTraveler.customerCode || '-')}</td>
                     <td className="px-3 py-1.5 print:px-2 print:py-0.5 font-bold text-black dark:text-white whitespace-nowrap">Customer Part Number:</td>
                     <td className="px-2 py-1.5 print:px-1 print:py-0.5 text-black dark:text-white">{isEditing ? <input type="text" value={editData.partNumber} onChange={(e) => updateField('partNumber', e.target.value)} className="w-full border border-gray-300 dark:border-slate-600 rounded px-2 py-0.5 text-sm text-black dark:text-white" /> : (displayTraveler.partNumber || '-')}</td>
                   </tr>

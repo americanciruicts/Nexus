@@ -27,6 +27,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { acceptCustomerCode } from '@/lib/customerCode';
 
 // Sortable wrapper for drag-and-drop step cards
 function SortableStepItem({ id, children }: { id: string; children: (props: { dragHandleProps: Record<string, unknown>; style: React.CSSProperties; ref: (node: HTMLElement | null) => void }) => React.ReactNode }) {
@@ -1576,7 +1577,7 @@ export default function TravelerForm({ mode = 'create', initialData, travelerId,
                 <input
                   type="text"
                   value={formData.customerCode}
-                  onChange={(e) => setFormData({...formData, customerCode: e.target.value})}
+                  onChange={(e) => { if (acceptCustomerCode(e.target.value, formData.customerCode || '')) setFormData({...formData, customerCode: e.target.value}); }}
                   className="w-full border-2 border-gray-300 dark:border-slate-600 rounded-lg px-3 md:px-4 py-2 md:py-3 text-sm md:text-base focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100"
                   placeholder="750"
                 />

@@ -110,7 +110,9 @@ class Part(Base):
     description = Column(String(200), nullable=False)
     revision = Column(String(20), nullable=False)
     work_center_code = Column(String(100), nullable=False)
-    customer_code = Column(String(20))
+    # 200 characters not counting spaces (see CUSTOMER_CODE_MAX_CHARS); the
+    # column is wider so the space-insensitive limit is what actually binds.
+    customer_code = Column(String(500))
     customer_name = Column(String(100))
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -160,7 +162,9 @@ class Traveler(Base):
     revision = Column(String(20), nullable=False)
     customer_revision = Column(String(50))  # Customer revision
     quantity = Column(Integer, nullable=False)
-    customer_code = Column(String(20))
+    # 200 characters not counting spaces (see CUSTOMER_CODE_MAX_CHARS); the
+    # column is wider so the space-insensitive limit is what actually binds.
+    customer_code = Column(String(500))
     customer_name = Column(String(100))
     priority = Column(Enum(Priority), default=Priority.NORMAL)
     work_center = Column(String(20), nullable=False)
@@ -680,7 +684,9 @@ class WorkOrder(Base):
     part_description = Column(String(200), nullable=False)
     revision = Column(String(20), nullable=False)
     quantity = Column(Integer, nullable=False)
-    customer_code = Column(String(20))
+    # 200 characters not counting spaces (see CUSTOMER_CODE_MAX_CHARS); the
+    # column is wider so the space-insensitive limit is what actually binds.
+    customer_code = Column(String(500))
     customer_name = Column(String(100))
     work_center = Column(String(20), nullable=False)
     priority = Column(Enum(Priority), default=Priority.NORMAL)

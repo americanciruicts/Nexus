@@ -1,7 +1,22 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 from datetime import datetime
 from models import TravelerType, TravelerStatus, Priority, ApprovalStatus
+
+# Customer code allows 200 characters, and spaces do not count toward that —
+# so "AB CD" is 4 characters, not 5. The DB column is VARCHAR(500) so this
+# check, not the column width, is what rejects an over-long code.
+CUSTOMER_CODE_MAX_CHARS = 200
+
+
+def _validate_customer_code(v):
+    if v is None:
+        return v
+    if len(''.join(str(v).split())) > CUSTOMER_CODE_MAX_CHARS:
+        raise ValueError(
+            f'Customer code must be at most {CUSTOMER_CODE_MAX_CHARS} characters, not counting spaces'
+        )
+    return v
 
 class SubStepBase(BaseModel):
     step_number: str
@@ -115,7 +130,7 @@ class TravelerBase(BaseModel):
     revision: str = Field(..., max_length=20)
     customer_revision: Optional[str] = Field(None, max_length=50)
     quantity: int = Field(..., gt=0)
-    customer_code: Optional[str] = Field(None, max_length=20)
+    customer_code: Optional[str] = Field(None, max_length=500)
     customer_name: Optional[str] = Field(None, max_length=100)
     priority: Priority = Priority.NORMAL
     work_center: str = Field(..., max_length=20)
@@ -153,6 +168,8 @@ class TravelerBase(BaseModel):
     rma_table_columns: Optional[str] = None
     rma_orig_table_columns: Optional[str] = None
 
+    _check_customer_code = field_validator('customer_code')(_validate_customer_code)
+
 class TravelerCreate(TravelerBase):
     status: Optional[TravelerStatus] = None
     process_steps: List[ProcessStepCreate] = []
@@ -169,7 +186,7 @@ class TravelerUpdate(BaseModel):
     revision: Optional[str] = Field(None, max_length=20)
     customer_revision: Optional[str] = Field(None, max_length=50)
     quantity: Optional[int] = Field(None, gt=0)
-    customer_code: Optional[str] = Field(None, max_length=20)
+    customer_code: Optional[str] = Field(None, max_length=500)
     customer_name: Optional[str] = Field(None, max_length=100)
     priority: Optional[Priority] = None
     work_center: Optional[str] = Field(None, max_length=20)
@@ -207,6 +224,8 @@ class TravelerUpdate(BaseModel):
     include_sn_table: Optional[bool] = None
     rma_table_columns: Optional[str] = None
     rma_orig_table_columns: Optional[str] = None
+
+    _check_customer_code = field_validator('customer_code')(_validate_customer_code)
 
 class TravelerGroupMember(BaseModel):
     id: int
