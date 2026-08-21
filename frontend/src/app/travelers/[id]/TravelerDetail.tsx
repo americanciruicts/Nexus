@@ -249,6 +249,7 @@ interface Traveler {
   assyType?: string;
   includeSnTable?: boolean;
   rmaTableColumns?: RmaTableColumn[];
+  rmaOrigTableColumns?: RmaTableColumn[];
   rmaUnits?: RmaUnit[];
   // Group linking fields
   groupId?: number | null;
@@ -285,6 +286,194 @@ const DEFAULT_RMA_TABLE_COLUMNS: RmaTableColumn[] = [
 ];
 
 const STANDARD_RMA_KEYS = new Set(DEFAULT_RMA_TABLE_COLUMNS.map(c => c.key));
+
+// Default columns for the RMA_DIFF Unit Original Job Information table. Same
+// mechanics as the tracking table above — rename, resize, delete, add — but its
+// own column list, so changing one table never disturbs the other.
+const DEFAULT_RMA_ORIG_TABLE_COLUMNS: RmaTableColumn[] = [
+  { key: 'serial_number',              label: 'Serial Number',    type: 'standard' },
+  { key: 'customer_ncr',               label: 'Customer NCR',     type: 'standard' },
+  { key: 'original_po_number',         label: 'Original PO#',     type: 'standard' },
+  { key: 'original_wo_number',         label: 'Original WO#',     type: 'standard' },
+  { key: 'customer_revision_sent',     label: 'Cust. Rev Sent',   type: 'standard' },
+  { key: 'customer_revision_received', label: 'Cust. Rev Recv',   type: 'standard' },
+  { key: 'original_built_quantity',    label: 'Orig. Built Qty',  type: 'standard' },
+  { key: 'units_shipped',              label: 'Units Shipped',    type: 'standard' },
+];
+
+// Which column set a handler is acting on. The two tables share every handler;
+// this picks the field on the traveler that holds the layout.
+type RmaColumnSetKey = 'rmaTableColumns' | 'rmaOrigTableColumns';
+const RMA_COLUMN_SET_DEFAULTS: Record<RmaColumnSetKey, RmaTableColumn[]> = {
+  rmaTableColumns: DEFAULT_RMA_TABLE_COLUMNS,
+  rmaOrigTableColumns: DEFAULT_RMA_ORIG_TABLE_COLUMNS,
+};
+// Custom columns from both tables live in the same RmaUnit.custom_values bag,
+// so their generated keys have to be distinct or a column added to one table
+// would show its values in the other.
+const RMA_CUSTOM_KEY_PREFIX: Record<RmaColumnSetKey, string> = {
+  rmaTableColumns: 'custom_',
+  rmaOrigTableColumns: 'orig_custom_',
+};
+
+// Standard columns backed by integer fields — edited as number inputs, and a 0
+// reads as blank so a cleared cell doesn't show "0".
+const NUMERIC_RMA_KEYS = new Set(['original_built_quantity', 'units_shipped']);
+
+// Both RMA unit tables — Unit Serial Number Tracking and (on RMA_DIFF) Unit
+// Original Job Information — render through this one component, so they look
+// and behave identically: rename a column in place, resize it with the − / +
+// buttons or by dragging its right edge, delete a column, add a custom column,
+// and add or delete units. Only the heading, accent colour and which optional
+// buttons appear differ.
+const RMA_TABLE_ACCENTS = {
+  red: {
+    bar: 'bg-red-200 dark:bg-red-900/50 print:!bg-red-200',
+    title: 'text-red-900 dark:text-red-200',
+    head: 'bg-red-100 dark:bg-red-900/30',
+  },
+  pink: {
+    bar: 'bg-pink-200 dark:bg-pink-900/50 print:!bg-pink-200',
+    title: 'text-pink-900 dark:text-pink-200',
+    head: 'bg-pink-100 dark:bg-pink-900/30',
+  },
+} as const;
+
+function RmaUnitColumnTable({
+  title, accent, columns, units, isEditing,
+  cellValue, onCellChange,
+  onAddColumn, onRenameColumn, onRemoveColumn, onResizeColumn, onStartColResize,
+  onAddUnit, onRemoveUnit, onRemoveTable,
+}: {
+  title: string;
+  accent: keyof typeof RMA_TABLE_ACCENTS;
+  columns: RmaTableColumn[];
+  units: RmaUnit[];
+  isEditing: boolean;
+  cellValue: (unit: RmaUnit, col: RmaTableColumn) => string;
+  onCellChange: (idx: number, col: RmaTableColumn, value: string) => void;
+  onAddColumn: () => void;
+  onRenameColumn: (key: string, label: string) => void;
+  onRemoveColumn: (key: string) => void;
+  onResizeColumn: (key: string, delta: number) => void;
+  onStartColResize: (e: React.MouseEvent, col: RmaTableColumn) => void;
+  onAddUnit?: () => void;
+  onRemoveUnit: (idx: number) => void;
+  onRemoveTable?: () => void;
+}) {
+  const c = RMA_TABLE_ACCENTS[accent];
+  return (
+    <div className="border-b-2 border-black dark:border-slate-600">
+      <div className={`${c.bar} border-b border-black dark:border-slate-600 px-3 py-2 flex justify-between items-center gap-2 flex-wrap`}>
+        <h2 className={`font-bold text-sm ${c.title} print:!text-black print:text-[10px]`}>{title}</h2>
+        {isEditing && (
+          <div className="flex items-center gap-2 no-print">
+            <button onClick={onAddColumn} className="flex items-center gap-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm" title="Add a new column to this table">
+              <PlusIcon className="h-4 w-4" /><span>Add Column</span>
+            </button>
+            {onAddUnit && (
+              <button onClick={onAddUnit} className="flex items-center gap-1 px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm">
+                <PlusIcon className="h-4 w-4" /><span>Add Unit</span>
+              </button>
+            )}
+            {onRemoveTable && (
+              <button onClick={onRemoveTable} className="flex items-center gap-1 px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm" title="Remove this table from the router. Unit data is kept and the table can be restored.">
+                <TrashIcon className="h-4 w-4" /><span>Remove Table</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="overflow-x-auto print:overflow-x-visible">
+        <table className="w-full border-collapse text-sm print:text-[8px]" style={{tableLayout: 'fixed'}}>
+          <colgroup>
+            <col style={{width: '40px'}} />
+            {columns.map(col => (
+              <col key={col.key} style={{width: `${col.width || RMA_COL_DEFAULT_WIDTH}px`}} />
+            ))}
+            {isEditing && <col style={{width: '40px'}} />}
+          </colgroup>
+          <thead>
+            <tr className={`${c.head} border-b-2 border-black dark:border-slate-600`}>
+              <th className="border-r border-black dark:border-slate-600 px-2 py-2 text-center font-bold">No.</th>
+              {columns.map((col, ci) => {
+                const isLast = ci === columns.length - 1;
+                return (
+                  <th key={col.key} className={`relative ${isLast ? '' : 'border-r border-black dark:border-slate-600'} px-2 py-2 text-left font-bold align-top whitespace-normal break-normal`}>
+                    <div className="flex items-start justify-between gap-1">
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={col.label}
+                          onChange={(e) => onRenameColumn(col.key, e.target.value)}
+                          className="flex-1 min-w-0 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded px-1.5 py-0.5 font-bold text-sm text-black dark:text-white print:border-none print:bg-transparent print:px-0 print:py-0"
+                          placeholder="Column name"
+                          title="Click to rename this column"
+                        />
+                      ) : (
+                        <span className="whitespace-normal break-normal">{col.label}</span>
+                      )}
+                      {isEditing && (
+                        <button onClick={() => onRemoveColumn(col.key)} className="text-red-600 hover:text-red-800 no-print shrink-0 mt-0.5" title={`Delete column "${col.label}"`}>
+                          <TrashIcon className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    {isEditing && (
+                      <div className="flex items-center gap-1 mt-1 no-print" title="Adjust this column's width (applies to print)">
+                        <span className="text-[10px] text-gray-500 dark:text-slate-400">Width</span>
+                        <button onClick={() => onResizeColumn(col.key, -RMA_COL_WIDTH_STEP)} className="px-1.5 py-0.5 text-xs font-bold leading-none bg-gray-200 hover:bg-gray-300 dark:bg-slate-700 dark:hover:bg-slate-600 border border-gray-400 dark:border-slate-500 rounded" title="Narrower">−</button>
+                        <span className="text-[10px] text-gray-600 dark:text-slate-300 tabular-nums w-9 text-center">{col.width || RMA_COL_DEFAULT_WIDTH}px</span>
+                        <button onClick={() => onResizeColumn(col.key, RMA_COL_WIDTH_STEP)} className="px-1.5 py-0.5 text-xs font-bold leading-none bg-gray-200 hover:bg-gray-300 dark:bg-slate-700 dark:hover:bg-slate-600 border border-gray-400 dark:border-slate-500 rounded" title="Wider">+</button>
+                      </div>
+                    )}
+                    {isEditing && (
+                      <div
+                        onMouseDown={(e) => onStartColResize(e, col)}
+                        className="absolute top-0 right-0 h-full w-2 cursor-col-resize bg-blue-400/50 hover:bg-blue-600 no-print"
+                        title="Drag to resize this column"
+                      />
+                    )}
+                  </th>
+                );
+              })}
+              {isEditing && <th className="px-2 py-2 no-print"></th>}
+            </tr>
+          </thead>
+          <tbody>
+            {units.map((unit, idx) => (
+              <tr key={idx} className="border-b border-gray-300 dark:border-slate-600" style={{height: '44px'}}>
+                <td className="border-r border-black dark:border-slate-600 px-2 py-2 text-center font-bold">{unit.unit_number}</td>
+                {columns.map((col, ci) => {
+                  const isLast = ci === columns.length - 1;
+                  const value = cellValue(unit, col);
+                  const numeric = col.type === 'standard' && NUMERIC_RMA_KEYS.has(col.key);
+                  return (
+                    <td key={col.key} className={`${isLast ? '' : 'border-r border-black dark:border-slate-600'} px-2 py-2 align-top break-words ${numeric ? 'text-center' : ''}`}>
+                      {isEditing ? (
+                        <input
+                          type={numeric ? 'number' : 'text'}
+                          value={value}
+                          onChange={(e) => onCellChange(idx, col, e.target.value)}
+                          className={`w-full border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm text-black dark:text-white ${numeric ? 'text-center' : ''}`}
+                        />
+                      ) : (<span className="block whitespace-pre-wrap break-words">{value || ''}</span>)}
+                    </td>
+                  );
+                })}
+                {isEditing && (
+                  <td className="px-2 py-2 no-print">
+                    <button onClick={() => onRemoveUnit(idx)} className="text-red-500 hover:text-red-700"><TrashIcon className="h-4 w-4" /></button>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 // Sortable table row wrapper for drag-and-drop in desktop view
 function SortableTableRow({ id, children }: { id: string; children: (props: { dragHandleProps: Record<string, unknown>; style: React.CSSProperties; ref: (node: HTMLElement | null) => void }) => React.ReactNode }) {
@@ -646,6 +835,11 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
             rmaTableColumns: (() => {
               try {
                 return data.rma_table_columns ? JSON.parse(data.rma_table_columns as string) as RmaTableColumn[] : undefined;
+              } catch { return undefined; }
+            })(),
+            rmaOrigTableColumns: (() => {
+              try {
+                return data.rma_orig_table_columns ? JSON.parse(data.rma_orig_table_columns as string) as RmaTableColumn[] : undefined;
               } catch { return undefined; }
             })(),
             rmaUnits: (data.rma_units || []).length > 0
@@ -1132,6 +1326,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
         assy_type: editedTraveler.assyType || null,
         include_sn_table: editedTraveler.includeSnTable !== false,
         rma_table_columns: editedTraveler.rmaTableColumns ? JSON.stringify(editedTraveler.rmaTableColumns) : null,
+        rma_orig_table_columns: editedTraveler.rmaOrigTableColumns ? JSON.stringify(editedTraveler.rmaOrigTableColumns) : null,
         rma_units: (editedTraveler.rmaUnits || []).filter(u => u.serial_number || u.customer_complaint || (u.custom_values && Object.values(u.custom_values).some(v => v))).map(u => ({
           unit_number: u.unit_number,
           serial_number: u.serial_number || '',
@@ -1334,48 +1529,53 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
     setEditedTraveler({ ...editedTraveler, rmaUnits: newUnits });
   };
 
-  const addRmaTableColumn = () => {
+  // Column controls are shared by both RMA unit tables. `set` names the field
+  // on the traveler holding that table's layout, so the same handler serves the
+  // Unit Serial Number Tracking table and the Unit Original Job Information one.
+  const rmaColumns = (set: RmaColumnSetKey, from?: Traveler | null): RmaTableColumn[] =>
+    (from ?? editedTraveler)?.[set] || RMA_COLUMN_SET_DEFAULTS[set];
+
+  const addRmaTableColumn = (set: RmaColumnSetKey) => {
     if (!editedTraveler) return;
-    const current = editedTraveler.rmaTableColumns || DEFAULT_RMA_TABLE_COLUMNS;
+    const current = rmaColumns(set);
+    const prefix = RMA_CUSTOM_KEY_PREFIX[set];
     const existingKeys = new Set(current.map(c => c.key));
     let i = 1;
-    while (existingKeys.has(`custom_${i}`)) i++;
-    const newCol: RmaTableColumn = { key: `custom_${i}`, label: 'New Column', type: 'custom' };
-    setEditedTraveler({ ...editedTraveler, rmaTableColumns: [...current, newCol] });
+    while (existingKeys.has(`${prefix}${i}`)) i++;
+    const newCol: RmaTableColumn = { key: `${prefix}${i}`, label: 'New Column', type: 'custom' };
+    setEditedTraveler({ ...editedTraveler, [set]: [...current, newCol] });
   };
 
-  const renameRmaTableColumn = (key: string, label: string) => {
+  const renameRmaTableColumn = (set: RmaColumnSetKey, key: string, label: string) => {
     if (!editedTraveler) return;
-    const current = editedTraveler.rmaTableColumns || DEFAULT_RMA_TABLE_COLUMNS;
-    const next = current.map(c => c.key === key ? { ...c, label } : c);
-    setEditedTraveler({ ...editedTraveler, rmaTableColumns: next });
+    const next = rmaColumns(set).map(c => c.key === key ? { ...c, label } : c);
+    setEditedTraveler({ ...editedTraveler, [set]: next });
   };
 
-  // Set a Unit Serial Number Tracking column to an absolute width (clamped).
-  // Uses a functional update so rapid drag-resize moves don't race on stale state.
-  const setRmaTableColumnWidth = (key: string, width: number) => {
+  // Set a column to an absolute width (clamped). Uses a functional update so
+  // rapid drag-resize moves don't race on stale state.
+  const setRmaTableColumnWidth = (set: RmaColumnSetKey, key: string, width: number) => {
     const w = Math.max(RMA_COL_MIN_WIDTH, Math.min(RMA_COL_MAX_WIDTH, Math.round(width)));
     setEditedTraveler(prev => {
       if (!prev) return prev;
-      const current = prev.rmaTableColumns || DEFAULT_RMA_TABLE_COLUMNS;
-      return { ...prev, rmaTableColumns: current.map(c => c.key === key ? { ...c, width: w } : c) };
+      const current = rmaColumns(set, prev);
+      return { ...prev, [set]: current.map(c => c.key === key ? { ...c, width: w } : c) };
     });
   };
 
   // Grow/shrink a column by a fixed step (− / + buttons).
-  const resizeRmaTableColumn = (key: string, delta: number) => {
-    const cols = editedTraveler?.rmaTableColumns || DEFAULT_RMA_TABLE_COLUMNS;
-    const cur = cols.find(c => c.key === key)?.width || RMA_COL_DEFAULT_WIDTH;
-    setRmaTableColumnWidth(key, cur + delta);
+  const resizeRmaTableColumn = (set: RmaColumnSetKey, key: string, delta: number) => {
+    const cur = rmaColumns(set).find(c => c.key === key)?.width || RMA_COL_DEFAULT_WIDTH;
+    setRmaTableColumnWidth(set, key, cur + delta);
   };
 
   // Drag the divider on a column's right edge to resize it live.
-  const startColResize = (e: React.MouseEvent, col: RmaTableColumn) => {
+  const startColResize = (e: React.MouseEvent, set: RmaColumnSetKey, col: RmaTableColumn) => {
     e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;
     const startW = col.width || RMA_COL_DEFAULT_WIDTH;
-    const onMove = (ev: MouseEvent) => setRmaTableColumnWidth(col.key, startW + (ev.clientX - startX));
+    const onMove = (ev: MouseEvent) => setRmaTableColumnWidth(set, col.key, startW + (ev.clientX - startX));
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
@@ -1388,19 +1588,27 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
     document.body.style.userSelect = 'none';
   };
 
-  const removeRmaTableColumn = (key: string) => {
+  const removeRmaTableColumn = (set: RmaColumnSetKey, key: string) => {
     if (!editedTraveler) return;
-    const current = editedTraveler.rmaTableColumns || DEFAULT_RMA_TABLE_COLUMNS;
+    const current = rmaColumns(set);
     if (current.length <= 1) {
       window.alert('At least one column must remain.');
       return;
     }
     const col = current.find(c => c.key === key);
     if (!col) return;
-    if (!window.confirm(`Delete column "${col.label}" and all of its data?`)) return;
+    // A standard column can appear in both tables (Serial Number does). Deleting
+    // it from one must not blank the other's copy of the same field.
+    const otherSet: RmaColumnSetKey = set === 'rmaTableColumns' ? 'rmaOrigTableColumns' : 'rmaTableColumns';
+    const stillUsedElsewhere = rmaColumns(otherSet).some(c => c.key === key);
+    if (!window.confirm(
+      stillUsedElsewhere
+        ? `Delete column "${col.label}" from this table? Its data is kept — the other unit table still shows this field.`
+        : `Delete column "${col.label}" and all of its data?`
+    )) return;
     const remaining = current.filter(c => c.key !== key);
     // Wipe the column's data on every unit so no orphan values are persisted.
-    const newUnits = (editedTraveler.rmaUnits || []).map(u => {
+    const newUnits = stillUsedElsewhere ? (editedTraveler.rmaUnits || []) : (editedTraveler.rmaUnits || []).map(u => {
       if (col.type === 'custom') {
         const { [key]: _removed, ...rest } = u.custom_values || {};
         void _removed;
@@ -1408,7 +1616,26 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
       }
       return { ...u, [key]: '' };
     });
-    setEditedTraveler({ ...editedTraveler, rmaTableColumns: remaining, rmaUnits: newUnits });
+    setEditedTraveler({ ...editedTraveler, [set]: remaining, rmaUnits: newUnits });
+  };
+
+  // Cell read/write shared by both tables.
+  const rmaCellValue = (unit: RmaUnit, col: RmaTableColumn): string => {
+    if (col.type !== 'standard') return (unit.custom_values && unit.custom_values[col.key]) || '';
+    const v = (unit as unknown as Record<string, unknown>)[col.key];
+    if (v === null || v === undefined || v === '') return '';
+    // A cleared number field lands on 0; show it blank rather than "0".
+    if (NUMERIC_RMA_KEYS.has(col.key) && v === 0) return '';
+    return String(v);
+  };
+
+  const rmaCellChange = (idx: number, col: RmaTableColumn, value: string) => {
+    if (col.type !== 'standard') {
+      updateRmaUnitCustom(idx, col.key, value);
+      return;
+    }
+    const next = NUMERIC_RMA_KEYS.has(col.key) ? (parseInt(value, 10) || 0) : value;
+    updateRmaUnit(idx, col.key as keyof RmaUnit, next);
   };
 
   const addSpecification = () => {
@@ -1616,6 +1843,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
         assyType: '',
         includeSnTable: true,
         rmaTableColumns: undefined,
+        rmaOrigTableColumns: undefined,
         rmaUnits: Array.from({ length: 5 }, (_, i) => ({
           unit_number: i + 1,
           serial_number: '',
@@ -1747,6 +1975,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
         assy_type: editedTraveler.assyType || null,
         include_sn_table: editedTraveler.includeSnTable !== false,
         rma_table_columns: editedTraveler.rmaTableColumns ? JSON.stringify(editedTraveler.rmaTableColumns) : null,
+        rma_orig_table_columns: editedTraveler.rmaOrigTableColumns ? JSON.stringify(editedTraveler.rmaOrigTableColumns) : null,
         rma_units: (editedTraveler.rmaUnits || []).filter(u => u.serial_number || u.customer_complaint || (u.custom_values && Object.values(u.custom_values).some(v => v))).map(u => ({
           unit_number: u.unit_number,
           serial_number: u.serial_number || '',
@@ -1934,6 +2163,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
         assy_type: editedTraveler.assyType || null,
         include_sn_table: editedTraveler.includeSnTable !== false,
         rma_table_columns: editedTraveler.rmaTableColumns ? JSON.stringify(editedTraveler.rmaTableColumns) : null,
+        rma_orig_table_columns: editedTraveler.rmaOrigTableColumns ? JSON.stringify(editedTraveler.rmaOrigTableColumns) : null,
         rma_units: (editedTraveler.rmaUnits || []).filter(u => u.serial_number || u.customer_complaint || (u.custom_values && Object.values(u.custom_values).some(v => v))).map(u => ({
           unit_number: u.unit_number,
           serial_number: u.serial_number || '',
@@ -4761,50 +4991,27 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
                 )}
               </div>
             </div>
-            {/* For RMA_DIFF type, show per-unit original job info table first */}
+            {/* On RMA_DIFF, the per-unit original job info table comes first.
+                Same component as the tracking table below, so it gets the same
+                rename / resize / delete-column controls; its layout is stored
+                separately in rmaOrigTableColumns. */}
             {displayTraveler.travelerType === 'RMA_DIFF' && (
-            <div className="border-b-2 border-black dark:border-slate-600">
-              <div className="bg-pink-200 dark:bg-pink-900/50 print:!bg-pink-200 border-b border-black dark:border-slate-600 px-3 py-2 flex justify-between items-center">
-                <h2 className="font-bold text-sm text-pink-900 dark:text-pink-200 print:!text-black print:text-[10px]">UNIT ORIGINAL JOB INFORMATION</h2>
-                {isEditing && (
-                  <button onClick={addRmaUnit} className="flex items-center gap-1 px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm no-print">
-                    <PlusIcon className="h-4 w-4" /><span>Add Unit</span>
-                  </button>
-                )}
-              </div>
-              <div className="overflow-x-auto print:overflow-x-visible">
-                <table className="w-full border-collapse text-sm print:text-[8px]">
-                  <thead>
-                    <tr className="bg-pink-100 dark:bg-pink-900/30 border-b-2 border-black dark:border-slate-600">
-                      <th className="border-r border-black dark:border-slate-600 px-2 py-2 text-center font-bold w-10">No.</th>
-                      <th className="border-r border-black dark:border-slate-600 px-2 py-2 text-left font-bold">Serial Number</th>
-                      <th className="border-r border-black dark:border-slate-600 px-2 py-2 text-left font-bold">Customer NCR</th>
-                      <th className="border-r border-black dark:border-slate-600 px-2 py-2 text-left font-bold">Original PO#</th>
-                      <th className="border-r border-black dark:border-slate-600 px-2 py-2 text-left font-bold">Original WO#</th>
-                      <th className="border-r border-black dark:border-slate-600 px-2 py-2 text-left font-bold">Cust. Rev Sent</th>
-                      <th className="border-r border-black dark:border-slate-600 px-2 py-2 text-left font-bold">Cust. Rev Recv</th>
-                      <th className="border-r border-black dark:border-slate-600 px-2 py-2 text-center font-bold">Orig. Built Qty</th>
-                      <th className="px-2 py-2 text-center font-bold">Units Shipped</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(displayTraveler.rmaUnits || []).map((unit, idx) => (
-                      <tr key={idx} className="border-b border-gray-300 dark:border-slate-600" style={{height: '40px'}}>
-                        <td className="border-r border-black dark:border-slate-600 px-2 py-2 text-center font-bold">{unit.unit_number}</td>
-                        <td className="border-r border-black dark:border-slate-600 px-2 py-2">{isEditing ? <input type="text" value={unit.serial_number} onChange={(e) => updateRmaUnit(idx, 'serial_number', e.target.value)} className="w-full border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm text-black dark:text-white" /> : (unit.serial_number || '')}</td>
-                        <td className="border-r border-black dark:border-slate-600 px-2 py-2">{isEditing ? <input type="text" value={unit.customer_ncr || ''} onChange={(e) => updateRmaUnit(idx, 'customer_ncr', e.target.value)} className="w-full border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm text-black dark:text-white" /> : (unit.customer_ncr || '')}</td>
-                        <td className="border-r border-black dark:border-slate-600 px-2 py-2">{isEditing ? <input type="text" value={unit.original_po_number || ''} onChange={(e) => updateRmaUnit(idx, 'original_po_number', e.target.value)} className="w-full border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm text-black dark:text-white" /> : (unit.original_po_number || '')}</td>
-                        <td className="border-r border-black dark:border-slate-600 px-2 py-2">{isEditing ? <input type="text" value={unit.original_wo_number || ''} onChange={(e) => updateRmaUnit(idx, 'original_wo_number', e.target.value)} className="w-full border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm text-black dark:text-white" /> : (unit.original_wo_number || '')}</td>
-                        <td className="border-r border-black dark:border-slate-600 px-2 py-2">{isEditing ? <input type="text" value={unit.customer_revision_sent || ''} onChange={(e) => updateRmaUnit(idx, 'customer_revision_sent', e.target.value)} className="w-full border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm text-black dark:text-white" /> : (unit.customer_revision_sent || '')}</td>
-                        <td className="border-r border-black dark:border-slate-600 px-2 py-2">{isEditing ? <input type="text" value={unit.customer_revision_received || ''} onChange={(e) => updateRmaUnit(idx, 'customer_revision_received', e.target.value)} className="w-full border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm text-black dark:text-white" /> : (unit.customer_revision_received || '')}</td>
-                        <td className="border-r border-black dark:border-slate-600 px-2 py-2 text-center">{isEditing ? <input type="number" value={unit.original_built_quantity || ''} onChange={(e) => updateRmaUnit(idx, 'original_built_quantity', parseInt(e.target.value) || 0)} className="w-full border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm text-center text-black dark:text-white" /> : (unit.original_built_quantity || '')}</td>
-                        <td className="px-2 py-2 text-center">{isEditing ? <input type="number" value={unit.units_shipped || ''} onChange={(e) => updateRmaUnit(idx, 'units_shipped', parseInt(e.target.value) || 0)} className="w-full border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm text-center text-black dark:text-white" /> : (unit.units_shipped || '')}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+              <RmaUnitColumnTable
+                title="UNIT ORIGINAL JOB INFORMATION"
+                accent="pink"
+                columns={rmaColumns('rmaOrigTableColumns', displayTraveler)}
+                units={displayTraveler.rmaUnits || []}
+                isEditing={isEditing}
+                cellValue={rmaCellValue}
+                onCellChange={rmaCellChange}
+                onAddColumn={() => addRmaTableColumn('rmaOrigTableColumns')}
+                onRenameColumn={(key, label) => renameRmaTableColumn('rmaOrigTableColumns', key, label)}
+                onRemoveColumn={(key) => removeRmaTableColumn('rmaOrigTableColumns', key)}
+                onResizeColumn={(key, delta) => resizeRmaTableColumn('rmaOrigTableColumns', key, delta)}
+                onStartColResize={(e, col) => startColResize(e, 'rmaOrigTableColumns', col)}
+                onAddUnit={addRmaUnit}
+                onRemoveUnit={removeRmaUnit}
+              />
             )}
 
             {/* Unit Serial Number Tracking Table (all RMA types). Operators can
@@ -4812,125 +5019,25 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
                 the unit rows stay on disk so restoring brings them back. When
                 it is removed the section is gone from view and print, and edit
                 mode shows a bar to put it back. */}
-            {(displayTraveler.includeSnTable !== false) ? (() => {
-              const tableColumns: RmaTableColumn[] = (editedTraveler?.rmaTableColumns || displayTraveler.rmaTableColumns || DEFAULT_RMA_TABLE_COLUMNS);
-              const cellValue = (unit: RmaUnit, col: RmaTableColumn): string => {
-                if (col.type === 'standard') {
-                  return ((unit as unknown as Record<string, unknown>)[col.key] as string) || '';
-                }
-                return (unit.custom_values && unit.custom_values[col.key]) || '';
-              };
-              const onCellChange = (idx: number, col: RmaTableColumn, value: string) => {
-                if (col.type === 'standard') {
-                  updateRmaUnit(idx, col.key as keyof RmaUnit, value);
-                } else {
-                  updateRmaUnitCustom(idx, col.key, value);
-                }
-              };
-              return (
-            <div className="border-b-2 border-black dark:border-slate-600">
-              <div className="bg-red-200 dark:bg-red-900/50 print:!bg-red-200 border-b border-black dark:border-slate-600 px-3 py-2 flex justify-between items-center gap-2 flex-wrap">
-                <h2 className="font-bold text-sm text-red-900 dark:text-red-200 print:!text-black print:text-[10px]">UNIT SERIAL NUMBER TRACKING</h2>
-                {isEditing && (
-                  <div className="flex items-center gap-2 no-print">
-                    <button onClick={addRmaTableColumn} className="flex items-center gap-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm" title="Add a new column to this table">
-                      <PlusIcon className="h-4 w-4" /><span>Add Column</span>
-                    </button>
-                    {displayTraveler.travelerType !== 'RMA_DIFF' && (
-                      <button onClick={addRmaUnit} className="flex items-center gap-1 px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm">
-                        <PlusIcon className="h-4 w-4" /><span>Add Unit</span>
-                      </button>
-                    )}
-                    <button onClick={() => updateField('includeSnTable', false)} className="flex items-center gap-1 px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm" title="Remove this table from the router. Unit data is kept and the table can be restored.">
-                      <TrashIcon className="h-4 w-4" /><span>Remove Table</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-              <div className="overflow-x-auto print:overflow-x-visible">
-                <table className="w-full border-collapse text-sm print:text-[8px]" style={{tableLayout: 'fixed'}}>
-                  <colgroup>
-                    <col style={{width: '40px'}} />
-                    {tableColumns.map(col => (
-                      <col key={col.key} style={{width: `${col.width || RMA_COL_DEFAULT_WIDTH}px`}} />
-                    ))}
-                    {isEditing && <col style={{width: '40px'}} />}
-                  </colgroup>
-                  <thead>
-                    <tr className="bg-red-100 dark:bg-red-900/30 border-b-2 border-black dark:border-slate-600">
-                      <th className="border-r border-black dark:border-slate-600 px-2 py-2 text-center font-bold">No.</th>
-                      {tableColumns.map((col, ci) => {
-                        const isLast = ci === tableColumns.length - 1;
-                        return (
-                          <th key={col.key} className={`relative ${isLast ? '' : 'border-r border-black dark:border-slate-600'} px-2 py-2 text-left font-bold align-top whitespace-normal break-normal`}>
-                            <div className="flex items-start justify-between gap-1">
-                              {isEditing ? (
-                                <input
-                                  type="text"
-                                  value={col.label}
-                                  onChange={(e) => renameRmaTableColumn(col.key, e.target.value)}
-                                  className="flex-1 min-w-0 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded px-1.5 py-0.5 font-bold text-sm text-black dark:text-white print:border-none print:bg-transparent print:px-0 print:py-0"
-                                  placeholder="Column name"
-                                  title="Click to rename this column"
-                                />
-                              ) : (
-                                <span className="whitespace-normal break-normal">{col.label}</span>
-                              )}
-                              {isEditing && (
-                                <button onClick={() => removeRmaTableColumn(col.key)} className="text-red-600 hover:text-red-800 no-print shrink-0 mt-0.5" title={`Delete column "${col.label}"`}>
-                                  <TrashIcon className="h-3.5 w-3.5" />
-                                </button>
-                              )}
-                            </div>
-                            {isEditing && (
-                              <div className="flex items-center gap-1 mt-1 no-print" title="Adjust this column's width (applies to print)">
-                                <span className="text-[10px] text-gray-500 dark:text-slate-400">Width</span>
-                                <button onClick={() => resizeRmaTableColumn(col.key, -RMA_COL_WIDTH_STEP)} className="px-1.5 py-0.5 text-xs font-bold leading-none bg-gray-200 hover:bg-gray-300 dark:bg-slate-700 dark:hover:bg-slate-600 border border-gray-400 dark:border-slate-500 rounded" title="Narrower">−</button>
-                                <span className="text-[10px] text-gray-600 dark:text-slate-300 tabular-nums w-9 text-center">{col.width || RMA_COL_DEFAULT_WIDTH}px</span>
-                                <button onClick={() => resizeRmaTableColumn(col.key, RMA_COL_WIDTH_STEP)} className="px-1.5 py-0.5 text-xs font-bold leading-none bg-gray-200 hover:bg-gray-300 dark:bg-slate-700 dark:hover:bg-slate-600 border border-gray-400 dark:border-slate-500 rounded" title="Wider">+</button>
-                              </div>
-                            )}
-                            {isEditing && (
-                              <div
-                                onMouseDown={(e) => startColResize(e, col)}
-                                className="absolute top-0 right-0 h-full w-2 cursor-col-resize bg-blue-400/50 hover:bg-blue-600 no-print"
-                                title="Drag to resize this column"
-                              />
-                            )}
-                          </th>
-                        );
-                      })}
-                      {isEditing && <th className="px-2 py-2 no-print"></th>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(displayTraveler.rmaUnits || []).map((unit, idx) => (
-                      <tr key={idx} className="border-b border-gray-300 dark:border-slate-600" style={{height: '44px'}}>
-                        <td className="border-r border-black dark:border-slate-600 px-2 py-2 text-center font-bold">{unit.unit_number}</td>
-                        {tableColumns.map((col, ci) => {
-                          const isLast = ci === tableColumns.length - 1;
-                          const value = cellValue(unit, col);
-                          return (
-                            <td key={col.key} className={`${isLast ? '' : 'border-r border-black dark:border-slate-600'} px-2 py-2 align-top break-words`}>
-                              {isEditing ? (
-                                <input type="text" value={value} onChange={(e) => onCellChange(idx, col, e.target.value)} className="w-full border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm text-black dark:text-white" />
-                              ) : (<span className="block whitespace-pre-wrap break-words">{value || ''}</span>)}
-                            </td>
-                          );
-                        })}
-                        {isEditing && (
-                          <td className="px-2 py-2 no-print">
-                            <button onClick={() => removeRmaUnit(idx)} className="text-red-500 hover:text-red-700"><TrashIcon className="h-4 w-4" /></button>
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-              );
-            })() : (isEditing ? (
+            {(displayTraveler.includeSnTable !== false) ? (
+              <RmaUnitColumnTable
+                title="UNIT SERIAL NUMBER TRACKING"
+                accent="red"
+                columns={rmaColumns('rmaTableColumns', displayTraveler)}
+                units={displayTraveler.rmaUnits || []}
+                isEditing={isEditing}
+                cellValue={rmaCellValue}
+                onCellChange={rmaCellChange}
+                onAddColumn={() => addRmaTableColumn('rmaTableColumns')}
+                onRenameColumn={(key, label) => renameRmaTableColumn('rmaTableColumns', key, label)}
+                onRemoveColumn={(key) => removeRmaTableColumn('rmaTableColumns', key)}
+                onResizeColumn={(key, delta) => resizeRmaTableColumn('rmaTableColumns', key, delta)}
+                onStartColResize={(e, col) => startColResize(e, 'rmaTableColumns', col)}
+                onAddUnit={displayTraveler.travelerType !== 'RMA_DIFF' ? addRmaUnit : undefined}
+                onRemoveUnit={removeRmaUnit}
+                onRemoveTable={() => updateField('includeSnTable', false)}
+              />
+            ) : (isEditing ? (
               <div className="border-b-2 border-black dark:border-slate-600 no-print">
                 <div className="bg-red-100 dark:bg-red-900/30 px-3 py-2 flex justify-between items-center gap-2 flex-wrap">
                   <span className="font-bold text-sm text-red-900 dark:text-red-200">UNIT SERIAL NUMBER TRACKING &mdash; removed from this router</span>

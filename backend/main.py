@@ -510,6 +510,7 @@ async def lifespan(app: FastAPI):
                 'assy_type': 'VARCHAR(50)',
                 'include_sn_table': 'BOOLEAN',
                 'rma_table_columns': 'TEXT',
+                'rma_orig_table_columns': 'TEXT',
             }
             import re as _re_ident
             _ident_re = _re_ident.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')

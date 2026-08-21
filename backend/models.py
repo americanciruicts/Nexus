@@ -214,6 +214,9 @@ class Traveler(Base):
     # where type is "standard" (backed by a RmaUnitTracking field) or "custom"
     # (stored in RmaUnitTracking.custom_values JSON).
     rma_table_columns = Column(Text)
+    # Same idea for the RMA_DIFF Unit Original Job Information table, kept in
+    # its own column so the two tables' layouts are independent.
+    rma_orig_table_columns = Column(Text)
 
     # Group linking fields
     group_id = Column(Integer, ForeignKey("traveler_groups.id"), nullable=True)

@@ -486,6 +486,7 @@ async def create_traveler(
             assy_type=traveler_data.assy_type,
             include_sn_table=(traveler_data.include_sn_table if traveler_data.include_sn_table is not None else True),
             rma_table_columns=traveler_data.rma_table_columns,
+            rma_orig_table_columns=traveler_data.rma_orig_table_columns,
         )
 
         # Build the entire traveler graph in ONE transaction. We flush (not
@@ -2038,6 +2039,8 @@ async def update_traveler(
     # Persist the user-customized column layout for the Unit Serial Number table
     if traveler_data.rma_table_columns is not None:
         traveler.rma_table_columns = traveler_data.rma_table_columns
+    if traveler_data.rma_orig_table_columns is not None:
+        traveler.rma_orig_table_columns = traveler_data.rma_orig_table_columns
 
     # Replace rma_units in bulk (units have no labor entries, so safe to delete/recreate).
     # Lets edits, additions, deletions, and per-unit custom_values all persist.
