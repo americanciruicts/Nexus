@@ -3,10 +3,10 @@ from typing import List, Optional
 from datetime import datetime
 from models import TravelerType, TravelerStatus, Priority, ApprovalStatus
 
-# Customer code allows 200 characters, and spaces do not count toward that —
+# Customer code allows 50 characters, and spaces do not count toward that —
 # so "AB CD" is 4 characters, not 5. The DB column is VARCHAR(500) so this
 # check, not the column width, is what rejects an over-long code.
-CUSTOMER_CODE_MAX_CHARS = 200
+CUSTOMER_CODE_MAX_CHARS = 50
 
 
 def _validate_customer_code(v):

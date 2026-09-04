@@ -155,7 +155,7 @@ const TRAVELER_TYPE_LINES: Record<string, { name: string; line: string }> = {
   PURCHASING: { name: 'Purchasing', line: 'Parts and components procurement' },
   RMA_SAME: { name: 'RMA Router Same Job', line: 'RMA from same job or revision, PO or work order' },
   RMA_DIFF: { name: 'RMA Router Diff Job', line: 'RMA from different jobs or revisions, POs or work orders' },
-  MODIFICATION: { name: 'Modification and Rework', line: 'Board modification and rework' },
+  MODIFICATION: { name: 'Modification, Rework or Repair', line: 'Board modification, rework or repair' },
 };
 
 // Assembly types selectable on the RMA (same/diff job) and Modification &
@@ -1765,7 +1765,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
     { value: 'PURCHASING', label: 'Purchasing', description: 'Parts and components procurement', subtitle: 'Sourcing, Receiving, QC Inspection', gradient: 'from-orange-500 to-amber-700', borderColor: 'border-orange-400', iconBg: 'bg-white/20', bubbleColor: 'bg-orange-400/20', icon: ShoppingCartIcon },
     { value: 'RMA_SAME', label: 'RMA Router Same Job', description: 'RMA from same job or revision, PO or work order', subtitle: 'Inspection, Repair, Testing, Shipping', gradient: 'from-red-600 to-rose-700', borderColor: 'border-red-400', iconBg: 'bg-white/20', bubbleColor: 'bg-red-400/20', icon: ArrowPathIcon },
     { value: 'RMA_DIFF', label: 'RMA Router Diff Job', description: 'RMA from different jobs or revisions, POs or work orders', subtitle: 'Multi-Job Tracking, Repair, Testing', gradient: 'from-pink-600 to-fuchsia-700', borderColor: 'border-pink-400', iconBg: 'bg-white/20', bubbleColor: 'bg-pink-400/20', icon: ArrowsRightLeftIcon },
-    { value: 'MODIFICATION', label: 'Modification and Rework', description: 'Board modification and rework', subtitle: 'Modification, Testing, Inspection', gradient: 'from-amber-600 to-yellow-700', borderColor: 'border-amber-400', iconBg: 'bg-white/20', bubbleColor: 'bg-amber-400/20', icon: WrenchIcon },
+    { value: 'MODIFICATION', label: 'Modification, Rework or Repair', description: 'Board modification, rework or repair', subtitle: 'Modification, Testing, Inspection', gradient: 'from-amber-600 to-yellow-700', borderColor: 'border-amber-400', iconBg: 'bg-white/20', bubbleColor: 'bg-amber-400/20', icon: WrenchIcon },
   ];
 
   const handleTypeSelect = (type: TravelerType) => {
@@ -4129,10 +4129,14 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
             const rmaLabel = displayTraveler.travelerType === 'MODIFICATION'
               ? (displayTraveler.woTypeLabel || 'Modification')
               : 'RMA';
-            // Short prefix for the top-left "<rma> ___ JOB NO <job>" line. Display
+            // Short prefix for the top-left "<rma> ___ JOB NO <job>" line: MOD /
+            // REWORK / REPAIR, matching the Work Order Number dropdown. Display
             // only — the labor-tracking/travelers-list label keeps "RMA JOB NO" as
-            // its parser marker, so this must not feed those code paths.
-            const jobNoPrefix = displayTraveler.travelerType === 'MODIFICATION' ? 'MOD' : 'RMA';
+            // its parser marker, so this must not feed those code paths. The
+            // backend job lookup (_lookup_candidates) strips all of these prefixes.
+            const jobNoPrefix = displayTraveler.travelerType === 'MODIFICATION'
+              ? (rmaLabel.toUpperCase() === 'MODIFICATION' ? 'MOD' : rmaLabel.toUpperCase())
+              : 'RMA';
             // "MODIFICATION"/"REWORK" are far wider than "RMA"; shrink the center
             // routing title for long labels so it can't overflow its cell and crash
             // into the To Stock / From Stock / Ship VIA column on the right.
@@ -4245,6 +4249,7 @@ export function TravelerDetailPage({ createMode = false }: { createMode?: boolea
                         >
                           <option value="Modification">Modification</option>
                           <option value="Rework">Rework</option>
+                          <option value="Repair">Repair</option>
                         </select>
                       ) : (
                         <span className="font-bold text-red-700 dark:text-red-400 mr-1">{displayTraveler.woTypeLabel || 'Modification'}</span>

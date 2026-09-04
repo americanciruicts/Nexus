@@ -110,7 +110,7 @@ class Part(Base):
     description = Column(String(200), nullable=False)
     revision = Column(String(20), nullable=False)
     work_center_code = Column(String(100), nullable=False)
-    # 200 characters not counting spaces (see CUSTOMER_CODE_MAX_CHARS); the
+    # 50 characters not counting spaces (see CUSTOMER_CODE_MAX_CHARS); the
     # column is wider so the space-insensitive limit is what actually binds.
     customer_code = Column(String(500))
     customer_name = Column(String(100))
@@ -162,7 +162,7 @@ class Traveler(Base):
     revision = Column(String(20), nullable=False)
     customer_revision = Column(String(50))  # Customer revision
     quantity = Column(Integer, nullable=False)
-    # 200 characters not counting spaces (see CUSTOMER_CODE_MAX_CHARS); the
+    # 50 characters not counting spaces (see CUSTOMER_CODE_MAX_CHARS); the
     # column is wider so the space-insensitive limit is what actually binds.
     customer_code = Column(String(500))
     customer_name = Column(String(100))
@@ -684,7 +684,7 @@ class WorkOrder(Base):
     part_description = Column(String(200), nullable=False)
     revision = Column(String(20), nullable=False)
     quantity = Column(Integer, nullable=False)
-    # 200 characters not counting spaces (see CUSTOMER_CODE_MAX_CHARS); the
+    # 50 characters not counting spaces (see CUSTOMER_CODE_MAX_CHARS); the
     # column is wider so the space-insensitive limit is what actually binds.
     customer_code = Column(String(500))
     customer_name = Column(String(100))

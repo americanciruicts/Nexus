@@ -195,7 +195,7 @@ const getTravelerTypeBadge = (type: string) => {
     'PURCHASING': { bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-800 dark:text-orange-300', border: 'border-orange-300 dark:border-orange-700', label: 'Purchasing' },
     'RMA_SAME': { bg: 'bg-red-100 dark:bg-red-900/40', text: 'text-red-800 dark:text-red-300', border: 'border-red-300 dark:border-red-700', label: 'RMA Same Job' },
     'RMA_DIFF': { bg: 'bg-pink-100 dark:bg-pink-900/40', text: 'text-pink-800 dark:text-pink-300', border: 'border-pink-300 dark:border-pink-700', label: 'RMA Diff Job' },
-    'MODIFICATION': { bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-800 dark:text-amber-300', border: 'border-amber-300 dark:border-amber-700', label: 'Modification and Rework' }
+    'MODIFICATION': { bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-800 dark:text-amber-300', border: 'border-amber-300 dark:border-amber-700', label: 'Modification, Rework or Repair' }
   };
 
   const config = typeConfig[type] || { bg: 'bg-gray-100 dark:bg-slate-700', text: 'text-gray-800 dark:text-slate-200', border: 'border-gray-300 dark:border-slate-600', label: type };

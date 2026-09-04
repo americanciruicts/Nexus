@@ -1066,6 +1066,9 @@ def _lookup_candidates(raw: str) -> list:
     and the original job in job_number, and people write them together in
     every shape: "1108", "8500L", "1108 RMA JOB 8500L", "1108 RMA JOB NO 8500L",
     "1108 MOD JOB 8500L". Any of those should find the same traveler.
+
+    MODIFICATION travelers print MOD / REWORK / REPAIR in that header depending
+    on the Work Order Number type dropdown, so all three prefixes are stripped.
     """
     text = re.sub(r'\s+', ' ', (raw or '')).strip()
     if not text:
@@ -1075,13 +1078,14 @@ def _lookup_candidates(raw: str) -> list:
     # Split on the connector words people put between the RMA/MOD number and
     # the job, e.g. "1108 RMA JOB NO 8500L" -> ["1108", "8500L"].
     parts = re.split(
-        r'\s*(?:RMA|MOD(?:IFICATION)?)?\s*JOB(?:\s*(?:NO|NUMBER|#))?\s*|\s+(?:RMA|MOD(?:IFICATION)?)\s+',
+        r'\s*(?:RMA|MOD(?:IFICATION)?|REWORK|REPAIR)?\s*JOB(?:\s*(?:NO|NUMBER|#))?\s*'
+        r'|\s+(?:RMA|MOD(?:IFICATION)?|REWORK|REPAIR)\s+',
         text,
         flags=re.IGNORECASE,
     )
     for part in parts:
         part = part.strip()
-        if part and part.upper() not in {'RMA', 'MOD', 'MODIFICATION', 'JOB', 'NO'}:
+        if part and part.upper() not in {'RMA', 'MOD', 'MODIFICATION', 'REWORK', 'REPAIR', 'JOB', 'NO'}:
             candidates.append(part)
 
     # De-dupe, preserve order

@@ -67,7 +67,7 @@ const TABS = [
   { key: 'PURCHASING', label: 'Purchasing' },
   { key: 'RMA_SAME', label: 'RMA Same Job' },
   { key: 'RMA_DIFF', label: 'RMA Diff Job' },
-  { key: 'MODIFICATION', label: 'Modification and Rework' },
+  { key: 'MODIFICATION', label: 'Modification, Rework or Repair' },
 ];
 
 // Static data map for initial sync
